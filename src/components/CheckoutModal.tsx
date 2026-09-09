@@ -130,7 +130,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, onClose }) =
                   </label>
                   <input
                     type="tel"
-                    placeholder="+91 9876543210"
+                    placeholder="+91 90144 04462"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-red-500"

@@ -28,10 +28,10 @@ export const AIAssistantWidget: React.FC = () => {
   }, [messages, isTyping]);
 
   const quickPrompts = [
+    'WhatsApp / Call',
     'Build Strength',
-    'Improve Fitness',
-    'Workout Plan',
     'Gym Membership',
+    'Workout Plan',
   ];
 
   const handleSendMessage = (textToSend?: string) => {
@@ -54,7 +54,9 @@ export const AIAssistantWidget: React.FC = () => {
       let botResponse = "I'd love to assist you with that! SHREX CLUB offers world-class coaching and power lifting platforms. How else can I help your training?";
 
       const lower = query.toLowerCase();
-      if (lower.includes('strength') || lower.includes('build')) {
+      if (lower.includes('whatsapp') || lower.includes('contact') || lower.includes('call') || lower.includes('phone') || lower.includes('instagram') || lower.includes('gmail') || lower.includes('email')) {
+        botResponse = "You can connect directly with us right away:\n• WhatsApp / Call: +91 90144 04462\n• Instagram: @Shreyas__.2008\n• Gmail: Shreyaskura@gmail.com\nFeel free to tap the WhatsApp card in the Contact section!";
+      } else if (lower.includes('strength') || lower.includes('build')) {
         botResponse = "For raw power and hypertrophy, I recommend our 'STRENGTH TRAINING' protocol or 1-on-1 coaching with Head Trainer Arjun Sharma!";
       } else if (lower.includes('membership') || lower.includes('price')) {
         botResponse = "Our memberships start at ₹1,499/mo for Essential, ₹2,999/mo for Performance (Most Popular), and ₹5,999/mo for Elite VIP!";

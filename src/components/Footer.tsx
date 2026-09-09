@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, ArrowUp, Share2, Video, MessageSquare } from 'lucide-react';
+import { Send, ArrowUp, Phone, Mail } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -23,10 +23,10 @@ export const Footer: React.FC = () => {
   return (
     <footer className="relative w-full bg-[#040406] text-white pt-16 pb-12 overflow-hidden border-t border-white/5">
       {/* Animated Glowing Top Accent Line */}
-      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-red-600 to-transparent shadow-[0_0_15px_#E50914]" />
+      <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-red-600 to-transparent" />
 
-      <div className="w-[92%] max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 mb-16 pb-12 border-b border-white/10">
+      <div className="max-w-7xl mx-auto px-6 lg:px-8 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-12 pb-16 border-b border-white/5">
           {/* Col 1: Brand Info */}
           <div className="lg:col-span-2">
             <a href="#hero" className="flex items-center gap-3 mb-4">
@@ -40,38 +40,90 @@ export const Footer: React.FC = () => {
               </span>
             </a>
 
-            <p className="text-xs text-gray-400 font-light max-w-sm mb-6 leading-relaxed">
+            <p className="text-xs text-gray-400 font-light max-w-sm mb-5 leading-relaxed">
               A high-performance athletic club engineering human potential through heavy steel, data telemetry, and world-class coaching.
             </p>
 
+            {/* Quick Contact info */}
+            <div className="space-y-2 mb-6 text-xs font-mono text-gray-300">
+              <a
+                href="https://wa.me/919014404462?text=Hello%20SHREX%20CLUB"
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-emerald-400 flex items-center gap-2 transition-colors"
+              >
+                <span className="text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/30">WHATSAPP / TEL</span>
+                <span>+91 90144 04462</span>
+              </a>
+              <a
+                href="mailto:Shreyaskura@gmail.com"
+                className="hover:text-amber-400 flex items-center gap-2 transition-colors"
+              >
+                <span className="text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30">GMAIL</span>
+                <span>Shreyaskura@gmail.com</span>
+              </a>
+              <a
+                href="https://instagram.com/Shreyas__.2008"
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-pink-400 flex items-center gap-2 transition-colors"
+              >
+                <span className="text-pink-400 font-bold bg-pink-500/10 px-1.5 py-0.5 rounded border border-pink-500/30">INSTAGRAM</span>
+                <span>@Shreyas__.2008</span>
+              </a>
+            </div>
+
             {/* Social Icons */}
             <div className="flex items-center gap-3">
+              {/* WhatsApp */}
               <a
-                href="https://instagram.com"
+                href="https://wa.me/919014404462?text=Hello%20SHREX%20CLUB"
                 target="_blank"
                 rel="noreferrer"
-                className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-red-600 text-gray-300 hover:text-white transition-all flex items-center justify-center"
-                aria-label="Instagram"
-              >
-                <Share2 className="w-4 h-4" />
-              </a>
-              <a
-                href="https://youtube.com"
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-red-600 text-gray-300 hover:text-white transition-all flex items-center justify-center"
-                aria-label="YouTube"
-              >
-                <Video className="w-4 h-4" />
-              </a>
-              <a
-                href="https://whatsapp.com"
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-red-600 text-gray-300 hover:text-white transition-all flex items-center justify-center"
+                className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500 text-emerald-400 hover:text-black transition-all flex items-center justify-center shadow-lg shadow-emerald-500/10"
                 aria-label="WhatsApp"
+                title="Chat on WhatsApp"
               >
-                <MessageSquare className="w-4 h-4" />
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.669-.699c.969.541 1.942.825 2.791.825 3.182 0 5.768-2.587 5.769-5.767.001-3.182-2.584-5.81-5.77-5.81zm3.385 8.213c-.144.405-.837.774-1.17.824-.312.045-.698.077-2.12-.51-1.815-.749-2.983-2.587-3.074-2.708-.089-.12-1.748-2.327-1.748-4.437 0-2.11 1.107-3.144 1.498-3.575.392-.431.854-.539 1.14-.539.285 0 .57.003.82.015.263.013.616-.099.964.736.357.859 1.22 2.975 1.328 3.19.108.216.18.47.036.758-.143.287-.215.467-.428.718-.214.252-.451.562-.644.754-.215.216-.44.45-.19.882.251.431 1.116 1.839 2.395 2.98 1.646 1.468 3.033 1.923 3.463 2.138.43.216.68.18.932-.108.252-.288 1.077-1.258 1.363-1.689.286-.431.572-.359.964-.216.393.144 2.498 1.177 2.926 1.393.428.216.714.323.82.502.108.18.108 1.042-.036 1.447z"/>
+                  <path d="M12 2C6.477 2 2 6.477 2 12c0 1.821.487 3.53 1.338 5L2 22l5.161-1.319A9.957 9.957 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18.25c-1.637 0-3.167-.492-4.45-1.336l-.319-.208-3.067.784.819-2.991-.225-.339A8.216 8.216 0 0 1 3.75 12c0-4.549 3.701-8.25 8.25-8.25 4.549 0 8.25 3.701 8.25 8.25 0 4.549-3.701 8.25-8.25 8.25z"/>
+                </svg>
+              </a>
+
+              {/* Instagram */}
+              <a
+                href="https://instagram.com/Shreyas__.2008"
+                target="_blank"
+                rel="noreferrer"
+                className="p-2.5 rounded-xl bg-pink-500/10 border border-pink-500/30 hover:bg-gradient-to-tr hover:from-amber-500 hover:via-pink-500 hover:to-purple-600 text-pink-400 hover:text-white transition-all flex items-center justify-center shadow-lg shadow-pink-500/10"
+                aria-label="Instagram"
+                title="Follow on Instagram"
+              >
+                <svg className="w-4 h-4 fill-none stroke-current" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                  <rect width="20" height="20" x="2" y="2" rx="5" ry="5"/>
+                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+                  <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+                </svg>
+              </a>
+
+              {/* Call */}
+              <a
+                href="tel:+919014404462"
+                className="p-2.5 rounded-xl bg-red-600/10 border border-red-600/30 hover:bg-red-600 text-red-400 hover:text-white transition-all flex items-center justify-center"
+                aria-label="Call Directly"
+                title="Call Directly"
+              >
+                <Phone className="w-4 h-4" />
+              </a>
+
+              {/* Gmail */}
+              <a
+                href="mailto:Shreyaskura@gmail.com"
+                className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500 text-amber-400 hover:text-black transition-all flex items-center justify-center"
+                aria-label="Email Us"
+                title="Email Us"
+              >
+                <Mail className="w-4 h-4" />
               </a>
             </div>
           </div>
