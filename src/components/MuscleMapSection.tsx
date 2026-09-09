@@ -3,60 +3,68 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
-import { Target, Dumbbell, Zap, CheckCircle2, ChevronRight, Activity, RotateCcw, Eye, Sparkles, MessageSquare } from 'lucide-react';
+import { Target, Dumbbell, Zap, ChevronRight, Activity, RotateCcw, Eye, ZoomIn, ZoomOut, MessageSquare } from 'lucide-react';
 import { MUSCLE_GROUPS, MuscleInfo } from '../data/gymData';
 
 interface MuscleMapSectionProps {
   onOpenWorkoutModal: (muscle: MuscleInfo) => void;
 }
 
-// Camera Positions & Targets for smooth 3D Zoom Animations
+// Comfortable, balanced camera zoom targets (NOT macro extreme zoom)
 const CAMERA_ZOOM_TARGETS: Record<string, { pos: [number, number, number]; target: [number, number, number] }> = {
-  'upper-chest': { pos: [0, 0.95, 1.9], target: [0, 0.9, 0] },
-  'mid-chest': { pos: [0, 0.8, 1.9], target: [0, 0.78, 0] },
-  'lower-chest': { pos: [0, 0.65, 1.8], target: [0, 0.62, 0] },
-  'abs': { pos: [0, 0.35, 1.7], target: [0, 0.3, 0] },
-  'obliques': { pos: [0.4, 0.35, 1.7], target: [0.35, 0.28, 0] },
-  'front-delts': { pos: [-0.65, 1.1, 1.8], target: [-0.7, 1.02, 0] },
-  'side-delts': { pos: [-0.9, 1.05, 1.7], target: [-0.85, 1.0, 0] },
-  'biceps': { pos: [-0.95, 0.75, 1.7], target: [-0.9, 0.68, 0] },
-  'forearms': { pos: [-1.05, 0.25, 1.6], target: [-1.0, 0.15, 0] },
-  'quads': { pos: [0, -0.65, 2.0], target: [0, -0.65, 0] },
-  'calves': { pos: [0, -1.35, 1.8], target: [0, -1.35, 0] },
-  // Posterior / Back muscles (viewed from rear)
-  'glutes': { pos: [0, -0.05, -2.1], target: [0, -0.08, 0] },
-  'hamstrings': { pos: [0, -0.65, -2.0], target: [0, -0.65, 0] },
-  'lats': { pos: [0, 0.75, -2.1], target: [0, 0.72, 0] },
-  'traps': { pos: [0, 1.15, -2.0], target: [0, 1.1, 0] },
-  'lower-back': { pos: [0, 0.35, -2.0], target: [0, 0.32, 0] },
-  'rear-delts': { pos: [-0.75, 1.1, -1.8], target: [-0.7, 1.02, 0] },
-  'triceps': { pos: [-0.95, 0.75, -1.7], target: [-0.9, 0.68, 0] },
-  // Default Full Body
-  'default': { pos: [0, 0, 4.2], target: [0, -0.1, 0] },
+  // Front Upper Torso (Upper, Mid, Lower Chest)
+  'upper-chest': { pos: [0, 0.7, 3.2], target: [0, 0.65, 0] },
+  'mid-chest': { pos: [0, 0.55, 3.2], target: [0, 0.55, 0] },
+  'lower-chest': { pos: [0, 0.45, 3.2], target: [0, 0.45, 0] },
+  // Core
+  'abs': { pos: [0, 0.15, 3.2], target: [0, 0.15, 0] },
+  'obliques': { pos: [0.25, 0.15, 3.2], target: [0.2, 0.15, 0] },
+  // Shoulders & Arms
+  'front-delts': { pos: [-0.45, 0.75, 3.0], target: [-0.4, 0.7, 0] },
+  'side-delts': { pos: [-0.65, 0.75, 3.0], target: [-0.6, 0.7, 0] },
+  'biceps': { pos: [-0.65, 0.45, 3.0], target: [-0.6, 0.4, 0] },
+  'forearms': { pos: [-0.75, 0.05, 3.0], target: [-0.7, 0.0, 0] },
+  // Legs Front
+  'quads': { pos: [0, -0.65, 3.3], target: [0, -0.65, 0] },
+  'calves': { pos: [0, -1.25, 3.1], target: [0, -1.25, 0] },
+  // Posterior / Back Muscles
+  'glutes': { pos: [0, -0.15, -3.2], target: [0, -0.15, 0] },
+  'hamstrings': { pos: [0, -0.65, -3.3], target: [0, -0.65, 0] },
+  'lats': { pos: [0, 0.55, -3.3], target: [0, 0.55, 0] },
+  'traps': { pos: [0, 0.9, -3.2], target: [0, 0.85, 0] },
+  'lower-back': { pos: [0, 0.15, -3.2], target: [0, 0.15, 0] },
+  'rear-delts': { pos: [-0.5, 0.75, -3.0], target: [-0.45, 0.7, 0] },
+  'triceps': { pos: [-0.65, 0.45, -3.0], target: [-0.6, 0.4, 0] },
+  // Default Full Body View (comfortable distance with full headroom & leg room)
+  'default': { pos: [0, -0.05, 4.6], target: [0, -0.1, 0] },
 };
 
-// Smooth Camera Lerper inside Canvas
+// Smooth Camera Controller
 function CameraController({
   selectedId,
+  isZoomed,
   isBackView,
   manualControlsRef,
 }: {
   selectedId: string;
+  isZoomed: boolean;
   isBackView: boolean;
   manualControlsRef: React.RefObject<any>;
 }) {
   useFrame((state, delta) => {
-    let config = CAMERA_ZOOM_TARGETS[selectedId] || CAMERA_ZOOM_TARGETS['default'];
+    // If not zoomed in, stay in full body overview
+    let config = isZoomed
+      ? CAMERA_ZOOM_TARGETS[selectedId] || CAMERA_ZOOM_TARGETS['default']
+      : CAMERA_ZOOM_TARGETS['default'];
 
     let targetPos = new THREE.Vector3(...config.pos);
     let lookTarget = new THREE.Vector3(...config.target);
 
-    // If in Back View and default view, flip camera to back
-    if (isBackView && selectedId === 'default') {
-      targetPos.set(0, 0, -4.2);
+    // If back view and full body, flip to rear
+    if (isBackView && !isZoomed) {
+      targetPos.set(0, -0.05, -4.6);
     }
 
-    // Smoothly glide camera
     state.camera.position.lerp(targetPos, delta * 3.2);
 
     if (manualControlsRef.current) {
@@ -68,8 +76,8 @@ function CameraController({
   return null;
 }
 
-// Single 3D Anatomical Muscle Mesh with interactive highlight & click
-function MusclePartMesh({
+// Individual Anatomical Muscle Component with high-contrast metallic shader
+function AnatomicalMuscle({
   muscleId,
   selectedId,
   onSelect,
@@ -77,7 +85,6 @@ function MusclePartMesh({
   rotation,
   scale = [1, 1, 1],
   geometry,
-  colorOverride,
 }: {
   muscleId: string;
   selectedId: string;
@@ -86,7 +93,6 @@ function MusclePartMesh({
   rotation?: [number, number, number];
   scale?: [number, number, number];
   geometry: React.ReactNode;
-  colorOverride?: string;
 }) {
   const [hovered, setHovered] = useState(false);
   const isSelected = selectedId === muscleId;
@@ -94,7 +100,7 @@ function MusclePartMesh({
 
   useFrame((state) => {
     if (isSelected && meshRef.current) {
-      const pulse = Math.sin(state.clock.getElapsedTime() * 5) * 0.35 + 1.15;
+      const pulse = Math.sin(state.clock.getElapsedTime() * 4.5) * 0.4 + 1.4;
       const mat = meshRef.current.material as THREE.MeshStandardMaterial;
       if (mat) {
         mat.emissiveIntensity = pulse;
@@ -124,345 +130,451 @@ function MusclePartMesh({
     >
       {geometry}
       <meshStandardMaterial
-        color={isSelected ? '#E50914' : hovered ? '#FF333D' : colorOverride || '#1B1B24'}
-        emissive={isSelected ? '#E50914' : hovered ? '#FF222A' : '#000000'}
-        emissiveIntensity={isSelected ? 1.2 : hovered ? 0.4 : 0}
-        metalness={0.75}
-        roughness={0.25}
+        color={isSelected ? '#FF1122' : hovered ? '#FF4455' : '#4E5568'}
+        emissive={isSelected ? '#FF1122' : hovered ? '#FF2233' : '#000000'}
+        emissiveIntensity={isSelected ? 1.5 : hovered ? 0.5 : 0}
+        metalness={0.7}
+        roughness={0.3}
       />
     </mesh>
   );
 }
 
-// Complete 3D Human Anatomy Mannequin
-function AnatomyMannequin({
+// Realistic Sculpted Human Athletic Figure
+function SculptedHumanModel({
   selectedId,
   onSelect,
 }: {
   selectedId: string;
   onSelect: (id: string) => void;
 }) {
-  const baseGray = '#16161E';
+  // Neutral high-contrast slate for non-muscle joints and structure
+  const structureColor = '#3A4050';
 
   return (
     <group position={[0, 0, 0]}>
-      {/* 1. Head & Neck */}
-      <mesh position={[0, 1.62, 0]}>
-        <sphereGeometry args={[0.22, 32, 32]} />
-        <meshStandardMaterial color={baseGray} metalness={0.8} roughness={0.3} />
+      {/* ===== 1. HEAD, JAW & NECK ===== */}
+      <mesh position={[0, 1.46, 0]}>
+        <sphereGeometry args={[0.2, 32, 32]} />
+        <meshStandardMaterial color={structureColor} metalness={0.75} roughness={0.3} />
       </mesh>
-      <mesh position={[0, 1.38, 0]}>
-        <cylinderGeometry args={[0.11, 0.13, 0.22, 16]} />
-        <meshStandardMaterial color={baseGray} metalness={0.8} roughness={0.3} />
+      {/* Jawline definition */}
+      <mesh position={[0, 1.34, 0.05]} rotation={[0.2, 0, 0]}>
+        <coneGeometry args={[0.13, 0.15, 16]} />
+        <meshStandardMaterial color={structureColor} metalness={0.75} roughness={0.3} />
+      </mesh>
+      {/* Neck & Sternocleidomastoid */}
+      <mesh position={[0, 1.2, 0]}>
+        <cylinderGeometry args={[0.11, 0.13, 0.18, 16]} />
+        <meshStandardMaterial color={structureColor} metalness={0.75} roughness={0.3} />
       </mesh>
 
-      {/* 2. Traps (Upper Back & Neck) */}
-      <MusclePartMesh
+      {/* ===== 2. TRAPEZIUS (Neck to Upper Back Mantle) ===== */}
+      <AnatomicalMuscle
         muscleId="traps"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0, 1.24, -0.1]}
-        scale={[1.1, 0.8, 1]}
-        geometry={<boxGeometry args={[0.55, 0.24, 0.2]} />}
+        position={[0, 1.14, -0.08]}
+        rotation={[-0.1, 0, 0]}
+        scale={[1.3, 0.9, 0.8]}
+        geometry={<boxGeometry args={[0.48, 0.22, 0.18]} />}
       />
 
-      {/* 3. Shoulders (Deltoids: Front, Side, Rear) */}
-      {/* Left Front Delt */}
-      <MusclePartMesh
+      {/* ===== 3. SHOULDERS (DELTOIDS: Front, Side, Rear) ===== */}
+      {/* Left Front Delt (Anterior) */}
+      <AnatomicalMuscle
         muscleId="front-delts"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.56, 1.08, 0.12]}
-        geometry={<sphereGeometry args={[0.16, 24, 24]} />}
+        position={[-0.52, 0.98, 0.12]}
+        geometry={<sphereGeometry args={[0.15, 24, 24]} />}
       />
-      {/* Right Front Delt */}
-      <MusclePartMesh
+      {/* Right Front Delt (Anterior) */}
+      <AnatomicalMuscle
         muscleId="front-delts"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.56, 1.08, 0.12]}
-        geometry={<sphereGeometry args={[0.16, 24, 24]} />}
+        position={[0.52, 0.98, 0.12]}
+        geometry={<sphereGeometry args={[0.15, 24, 24]} />}
       />
-      {/* Left Side Delt */}
-      <MusclePartMesh
+      {/* Left Side Delt (Lateral - 3D Cap) */}
+      <AnatomicalMuscle
         muscleId="side-delts"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.68, 1.05, 0]}
-        geometry={<sphereGeometry args={[0.17, 24, 24]} />}
+        position={[-0.64, 0.96, 0]}
+        scale={[0.9, 1.2, 1]}
+        geometry={<sphereGeometry args={[0.16, 24, 24]} />}
       />
-      {/* Right Side Delt */}
-      <MusclePartMesh
+      {/* Right Side Delt (Lateral - 3D Cap) */}
+      <AnatomicalMuscle
         muscleId="side-delts"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.68, 1.05, 0]}
-        geometry={<sphereGeometry args={[0.17, 24, 24]} />}
+        position={[0.64, 0.96, 0]}
+        scale={[0.9, 1.2, 1]}
+        geometry={<sphereGeometry args={[0.16, 24, 24]} />}
       />
-      {/* Left Rear Delt */}
-      <MusclePartMesh
+      {/* Left Rear Delt (Posterior) */}
+      <AnatomicalMuscle
         muscleId="rear-delts"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.56, 1.08, -0.12]}
-        geometry={<sphereGeometry args={[0.16, 24, 24]} />}
+        position={[-0.52, 0.98, -0.12]}
+        geometry={<sphereGeometry args={[0.15, 24, 24]} />}
       />
-      {/* Right Rear Delt */}
-      <MusclePartMesh
+      {/* Right Rear Delt (Posterior) */}
+      <AnatomicalMuscle
         muscleId="rear-delts"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.56, 1.08, -0.12]}
-        geometry={<sphereGeometry args={[0.16, 24, 24]} />}
+        position={[0.52, 0.98, -0.12]}
+        geometry={<sphereGeometry args={[0.15, 24, 24]} />}
       />
 
-      {/* 4. Upper Chest (Clavicular Head) */}
-      <MusclePartMesh
+      {/* ===== 4. UPPER CHEST (Clavicular Head) ===== */}
+      <AnatomicalMuscle
         muscleId="upper-chest"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.2, 0.98, 0.16]}
-        rotation={[0, 0, 0.15]}
-        geometry={<boxGeometry args={[0.3, 0.14, 0.16]} />}
+        position={[-0.19, 0.9, 0.15]}
+        rotation={[0.1, 0, 0.18]}
+        scale={[1.4, 0.7, 0.9]}
+        geometry={<boxGeometry args={[0.25, 0.16, 0.16]} />}
       />
-      <MusclePartMesh
+      <AnatomicalMuscle
         muscleId="upper-chest"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.2, 0.98, 0.16]}
-        rotation={[0, 0, -0.15]}
-        geometry={<boxGeometry args={[0.3, 0.14, 0.16]} />}
+        position={[0.19, 0.9, 0.15]}
+        rotation={[0.1, 0, -0.18]}
+        scale={[1.4, 0.7, 0.9]}
+        geometry={<boxGeometry args={[0.25, 0.16, 0.16]} />}
       />
 
-      {/* 5. Middle Chest (Sternal Head) */}
-      <MusclePartMesh
+      {/* ===== 5. MIDDLE CHEST (Sternal Head) ===== */}
+      <AnatomicalMuscle
         muscleId="mid-chest"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.22, 0.82, 0.18]}
-        geometry={<boxGeometry args={[0.34, 0.16, 0.17]} />}
+        position={[-0.2, 0.75, 0.16]}
+        scale={[1.3, 0.9, 1]}
+        geometry={<boxGeometry args={[0.28, 0.18, 0.16]} />}
       />
-      <MusclePartMesh
+      <AnatomicalMuscle
         muscleId="mid-chest"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.22, 0.82, 0.18]}
-        geometry={<boxGeometry args={[0.34, 0.16, 0.17]} />}
+        position={[0.2, 0.75, 0.16]}
+        scale={[1.3, 0.9, 1]}
+        geometry={<boxGeometry args={[0.28, 0.18, 0.16]} />}
       />
 
-      {/* 6. Lower Chest (Abdominal Head) — USER REQUEST */}
-      <MusclePartMesh
+      {/* ===== 6. LOWER CHEST (Abdominal Head) — USER FOCUS ===== */}
+      <AnatomicalMuscle
         muscleId="lower-chest"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.2, 0.67, 0.17]}
-        rotation={[0, 0, -0.1]}
-        geometry={<boxGeometry args={[0.32, 0.12, 0.16]} />}
+        position={[-0.18, 0.62, 0.14]}
+        rotation={[-0.05, 0, -0.12]}
+        scale={[1.4, 0.6, 0.9]}
+        geometry={<boxGeometry args={[0.26, 0.13, 0.15]} />}
       />
-      <MusclePartMesh
+      <AnatomicalMuscle
         muscleId="lower-chest"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.2, 0.67, 0.17]}
-        rotation={[0, 0, 0.1]}
-        geometry={<boxGeometry args={[0.32, 0.12, 0.16]} />}
+        position={[0.18, 0.62, 0.14]}
+        rotation={[-0.05, 0, 0.12]}
+        scale={[1.4, 0.6, 0.9]}
+        geometry={<boxGeometry args={[0.26, 0.13, 0.15]} />}
       />
 
-      {/* 7. Lats (Latissimus Dorsi - V-Taper Wings) */}
-      <MusclePartMesh
+      {/* ===== 7. LATS (Latissimus Dorsi - V-Taper Wings) ===== */}
+      <AnatomicalMuscle
         muscleId="lats"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.38, 0.74, -0.12]}
-        rotation={[0, 0, 0.2]}
-        geometry={<boxGeometry args={[0.26, 0.42, 0.18]} />}
+        position={[-0.35, 0.66, -0.1]}
+        rotation={[0, 0, 0.22]}
+        scale={[1.1, 1.6, 1]}
+        geometry={<boxGeometry args={[0.24, 0.35, 0.18]} />}
       />
-      <MusclePartMesh
+      <AnatomicalMuscle
         muscleId="lats"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.38, 0.74, -0.12]}
-        rotation={[0, 0, -0.2]}
-        geometry={<boxGeometry args={[0.26, 0.42, 0.18]} />}
+        position={[0.35, 0.66, -0.1]}
+        rotation={[0, 0, -0.22]}
+        scale={[1.1, 1.6, 1]}
+        geometry={<boxGeometry args={[0.24, 0.35, 0.18]} />}
       />
 
-      {/* 8. Lower Back (Erector Spinae) */}
-      <MusclePartMesh
+      {/* ===== 8. LOWER BACK (Erector Spinae) ===== */}
+      <AnatomicalMuscle
         muscleId="lower-back"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0, 0.32, -0.14]}
-        geometry={<boxGeometry args={[0.36, 0.36, 0.16]} />}
+        position={[-0.09, 0.28, -0.12]}
+        geometry={<cylinderGeometry args={[0.07, 0.08, 0.36, 16]} />}
+      />
+      <AnatomicalMuscle
+        muscleId="lower-back"
+        selectedId={selectedId}
+        onSelect={onSelect}
+        position={[0.09, 0.28, -0.12]}
+        geometry={<cylinderGeometry args={[0.07, 0.08, 0.36, 16]} />}
       />
 
-      {/* 9. Abs (Rectus Abdominis 6-Pack) */}
-      <MusclePartMesh
+      {/* ===== 9. ABDOMINALS (Rectus Abdominis - 6-Pack) ===== */}
+      {/* Upper Abs */}
+      <AnatomicalMuscle
         muscleId="abs"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0, 0.35, 0.15]}
-        geometry={<boxGeometry args={[0.3, 0.45, 0.14]} />}
+        position={[-0.08, 0.46, 0.13]}
+        geometry={<boxGeometry args={[0.13, 0.11, 0.12]} />}
+      />
+      <AnatomicalMuscle
+        muscleId="abs"
+        selectedId={selectedId}
+        onSelect={onSelect}
+        position={[0.08, 0.46, 0.13]}
+        geometry={<boxGeometry args={[0.13, 0.11, 0.12]} />}
+      />
+      {/* Mid Abs */}
+      <AnatomicalMuscle
+        muscleId="abs"
+        selectedId={selectedId}
+        onSelect={onSelect}
+        position={[-0.08, 0.32, 0.12]}
+        geometry={<boxGeometry args={[0.13, 0.11, 0.12]} />}
+      />
+      <AnatomicalMuscle
+        muscleId="abs"
+        selectedId={selectedId}
+        onSelect={onSelect}
+        position={[0.08, 0.32, 0.12]}
+        geometry={<boxGeometry args={[0.13, 0.11, 0.12]} />}
+      />
+      {/* Lower Abs */}
+      <AnatomicalMuscle
+        muscleId="abs"
+        selectedId={selectedId}
+        onSelect={onSelect}
+        position={[-0.08, 0.18, 0.11]}
+        geometry={<boxGeometry args={[0.13, 0.11, 0.12]} />}
+      />
+      <AnatomicalMuscle
+        muscleId="abs"
+        selectedId={selectedId}
+        onSelect={onSelect}
+        position={[0.08, 0.18, 0.11]}
+        geometry={<boxGeometry args={[0.13, 0.11, 0.12]} />}
       />
 
-      {/* 10. Obliques (Side Core & Serratus) */}
-      <MusclePartMesh
+      {/* ===== 10. OBLIQUES (Flanks & Serratus) ===== */}
+      <AnatomicalMuscle
         muscleId="obliques"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.34, 0.35, 0.08]}
-        rotation={[0, 0, 0.15]}
-        geometry={<boxGeometry args={[0.16, 0.38, 0.16]} />}
+        position={[-0.28, 0.32, 0.05]}
+        rotation={[0, 0, 0.14]}
+        scale={[1, 1.4, 1]}
+        geometry={<boxGeometry args={[0.15, 0.32, 0.16]} />}
       />
-      <MusclePartMesh
+      <AnatomicalMuscle
         muscleId="obliques"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.34, 0.35, 0.08]}
-        rotation={[0, 0, -0.15]}
-        geometry={<boxGeometry args={[0.16, 0.38, 0.16]} />}
+        position={[0.28, 0.32, 0.05]}
+        rotation={[0, 0, -0.14]}
+        scale={[1, 1.4, 1]}
+        geometry={<boxGeometry args={[0.15, 0.32, 0.16]} />}
       />
 
-      {/* 11. Arms — Biceps (Front) & Triceps (Back) */}
-      {/* Left Bicep */}
-      <MusclePartMesh
+      {/* ===== 11. ARMS: BICEPS & TRICEPS ===== */}
+      {/* Left Bicep (Anterior Peak) */}
+      <AnatomicalMuscle
         muscleId="biceps"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.72, 0.68, 0.08]}
-        geometry={<capsuleGeometry args={[0.11, 0.28, 16, 16]} />}
+        position={[-0.66, 0.62, 0.07]}
+        scale={[1, 1.3, 1]}
+        geometry={<sphereGeometry args={[0.11, 20, 20]} />}
       />
-      {/* Right Bicep */}
-      <MusclePartMesh
+      {/* Right Bicep (Anterior Peak) */}
+      <AnatomicalMuscle
         muscleId="biceps"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.72, 0.68, 0.08]}
-        geometry={<capsuleGeometry args={[0.11, 0.28, 16, 16]} />}
+        position={[0.66, 0.62, 0.07]}
+        scale={[1, 1.3, 1]}
+        geometry={<sphereGeometry args={[0.11, 20, 20]} />}
       />
-      {/* Left Tricep */}
-      <MusclePartMesh
+      {/* Left Tricep (Posterior Horseshoe) */}
+      <AnatomicalMuscle
         muscleId="triceps"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.72, 0.68, -0.08]}
-        geometry={<capsuleGeometry args={[0.12, 0.28, 16, 16]} />}
+        position={[-0.66, 0.62, -0.07]}
+        scale={[1.1, 1.4, 1]}
+        geometry={<sphereGeometry args={[0.12, 20, 20]} />}
       />
-      {/* Right Tricep */}
-      <MusclePartMesh
+      {/* Right Tricep (Posterior Horseshoe) */}
+      <AnatomicalMuscle
         muscleId="triceps"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.72, 0.68, -0.08]}
-        geometry={<capsuleGeometry args={[0.12, 0.28, 16, 16]} />}
+        position={[0.66, 0.62, -0.07]}
+        scale={[1.1, 1.4, 1]}
+        geometry={<sphereGeometry args={[0.12, 20, 20]} />}
       />
 
-      {/* 12. Forearms */}
-      <MusclePartMesh
+      {/* ===== 12. FOREARMS (Brachioradialis Taper) ===== */}
+      <AnatomicalMuscle
         muscleId="forearms"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.85, 0.16, 0]}
+        position={[-0.78, 0.14, 0]}
         rotation={[0, 0, 0.08]}
-        geometry={<cylinderGeometry args={[0.08, 0.06, 0.44, 16]} />}
+        geometry={<cylinderGeometry args={[0.08, 0.05, 0.44, 16]} />}
       />
-      <MusclePartMesh
+      <AnatomicalMuscle
         muscleId="forearms"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.85, 0.16, 0]}
+        position={[0.78, 0.14, 0]}
         rotation={[0, 0, -0.08]}
-        geometry={<cylinderGeometry args={[0.08, 0.06, 0.44, 16]} />}
+        geometry={<cylinderGeometry args={[0.08, 0.05, 0.44, 16]} />}
       />
 
-      {/* 13. Glutes (Gluteus Maximus) — USER REQUEST */}
-      <MusclePartMesh
+      {/* ===== 13. GLUTES (Gluteus Maximus & Medius) — USER FOCUS ===== */}
+      <AnatomicalMuscle
         muscleId="glutes"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.2, -0.06, -0.15]}
+        position={[-0.18, -0.08, -0.14]}
+        scale={[1.2, 1.1, 1.2]}
         geometry={<sphereGeometry args={[0.22, 24, 24]} />}
       />
-      <MusclePartMesh
+      <AnatomicalMuscle
         muscleId="glutes"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.2, -0.06, -0.15]}
+        position={[0.18, -0.08, -0.14]}
+        scale={[1.2, 1.1, 1.2]}
         geometry={<sphereGeometry args={[0.22, 24, 24]} />}
       />
 
-      {/* Pelvis Front */}
-      <mesh position={[0, -0.04, 0.08]}>
-        <boxGeometry args={[0.42, 0.2, 0.22]} />
-        <meshStandardMaterial color={baseGray} metalness={0.8} roughness={0.3} />
+      {/* Pelvis Front Base */}
+      <mesh position={[0, -0.06, 0.06]}>
+        <boxGeometry args={[0.38, 0.18, 0.2]} />
+        <meshStandardMaterial color={structureColor} metalness={0.75} roughness={0.3} />
       </mesh>
 
-      {/* 14. Quads (Front Thighs) */}
-      <MusclePartMesh
+      {/* ===== 14. QUADS (Front Thigh Sweep) ===== */}
+      <AnatomicalMuscle
         muscleId="quads"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.22, -0.65, 0.12]}
-        geometry={<capsuleGeometry args={[0.16, 0.52, 16, 16]} />}
+        position={[-0.2, -0.62, 0.1]}
+        scale={[1.1, 1.5, 1]}
+        geometry={<cylinderGeometry args={[0.15, 0.11, 0.54, 20]} />}
       />
-      <MusclePartMesh
+      <AnatomicalMuscle
         muscleId="quads"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.22, -0.65, 0.12]}
-        geometry={<capsuleGeometry args={[0.16, 0.52, 16, 16]} />}
+        position={[0.2, -0.62, 0.1]}
+        scale={[1.1, 1.5, 1]}
+        geometry={<cylinderGeometry args={[0.15, 0.11, 0.54, 20]} />}
       />
 
-      {/* 15. Hamstrings (Back Thighs) */}
-      <MusclePartMesh
+      {/* ===== 15. HAMSTRINGS (Rear Thigh Columns) ===== */}
+      <AnatomicalMuscle
         muscleId="hamstrings"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.22, -0.65, -0.12]}
-        geometry={<capsuleGeometry args={[0.16, 0.52, 16, 16]} />}
+        position={[-0.2, -0.62, -0.1]}
+        scale={[1.1, 1.5, 1]}
+        geometry={<cylinderGeometry args={[0.14, 0.11, 0.54, 20]} />}
       />
-      <MusclePartMesh
+      <AnatomicalMuscle
         muscleId="hamstrings"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.22, -0.65, -0.12]}
-        geometry={<capsuleGeometry args={[0.16, 0.52, 16, 16]} />}
+        position={[0.2, -0.62, -0.1]}
+        scale={[1.1, 1.5, 1]}
+        geometry={<cylinderGeometry args={[0.14, 0.11, 0.54, 20]} />}
       />
 
-      {/* Knees */}
-      <mesh position={[-0.22, -1.02, 0]}>
-        <sphereGeometry args={[0.11, 16, 16]} />
-        <meshStandardMaterial color={baseGray} metalness={0.9} roughness={0.2} />
+      {/* Knee Joints */}
+      <mesh position={[-0.2, -0.98, 0]}>
+        <sphereGeometry args={[0.1, 16, 16]} />
+        <meshStandardMaterial color={structureColor} metalness={0.8} roughness={0.25} />
       </mesh>
-      <mesh position={[0.22, -1.02, 0]}>
-        <sphereGeometry args={[0.11, 16, 16]} />
-        <meshStandardMaterial color={baseGray} metalness={0.9} roughness={0.2} />
+      <mesh position={[0.2, -0.98, 0]}>
+        <sphereGeometry args={[0.1, 16, 16]} />
+        <meshStandardMaterial color={structureColor} metalness={0.8} roughness={0.25} />
       </mesh>
 
-      {/* 16. Calves (Lower Legs) */}
-      <MusclePartMesh
+      {/* ===== 16. CALVES (Diamond Gastrocnemius Heads) ===== */}
+      <AnatomicalMuscle
         muscleId="calves"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[-0.24, -1.38, -0.04]}
-        geometry={<cylinderGeometry args={[0.13, 0.08, 0.54, 16]} />}
+        position={[-0.22, -1.34, -0.04]}
+        scale={[1.2, 1.4, 1.2]}
+        geometry={<sphereGeometry args={[0.12, 20, 20]} />}
       />
-      <MusclePartMesh
+      <AnatomicalMuscle
         muscleId="calves"
         selectedId={selectedId}
         onSelect={onSelect}
-        position={[0.24, -1.38, -0.04]}
-        geometry={<cylinderGeometry args={[0.13, 0.08, 0.54, 16]} />}
+        position={[0.22, -1.34, -0.04]}
+        scale={[1.2, 1.4, 1.2]}
+        geometry={<sphereGeometry args={[0.12, 20, 20]} />}
       />
+      {/* Lower Shin / Achilles */}
+      <mesh position={[-0.22, -1.52, 0]}>
+        <cylinderGeometry args={[0.06, 0.05, 0.25, 16]} />
+        <meshStandardMaterial color={structureColor} metalness={0.8} roughness={0.3} />
+      </mesh>
+      <mesh position={[0.22, -1.52, 0]}>
+        <cylinderGeometry args={[0.06, 0.05, 0.25, 16]} />
+        <meshStandardMaterial color={structureColor} metalness={0.8} roughness={0.3} />
+      </mesh>
+
+      {/* Feet & Pedestal Ring */}
+      <mesh position={[-0.22, -1.68, 0.05]}>
+        <boxGeometry args={[0.12, 0.06, 0.24]} />
+        <meshStandardMaterial color={structureColor} metalness={0.8} roughness={0.3} />
+      </mesh>
+      <mesh position={[0.22, -1.68, 0.05]}>
+        <boxGeometry args={[0.12, 0.06, 0.24]} />
+        <meshStandardMaterial color={structureColor} metalness={0.8} roughness={0.3} />
+      </mesh>
+
+      {/* Athletic Telemetry Platform Ring */}
+      <mesh position={[0, -1.72, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.6, 0.85, 32]} />
+        <meshStandardMaterial color="#222838" metalness={0.9} roughness={0.2} />
+      </mesh>
+      <mesh position={[0, -1.72, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.85, 0.88, 32]} />
+        <meshStandardMaterial color="#E50914" emissive="#E50914" emissiveIntensity={0.6} />
+      </mesh>
     </group>
   );
 }
 
 // Category tabs
 const CATEGORIES = [
-  { id: 'all', label: 'ALL MUSCLES' },
+  { id: 'all', label: 'ALL BODY PARTS' },
   { id: 'chest', label: 'CHEST', subIds: ['upper-chest', 'mid-chest', 'lower-chest'] },
   { id: 'legs', label: 'LEGS & GLUTES', subIds: ['glutes', 'quads', 'hamstrings', 'calves'] },
-  { id: 'back', label: 'BACK', subIds: ['lats', 'traps', 'lower-back'] },
+  { id: 'back', label: 'BACK & TRAPS', subIds: ['lats', 'traps', 'lower-back'] },
   { id: 'arms', label: 'ARMS', subIds: ['biceps', 'triceps', 'forearms'] },
   { id: 'shoulders', label: 'SHOULDERS', subIds: ['front-delts', 'side-delts', 'rear-delts'] },
   { id: 'core', label: 'CORE', subIds: ['abs', 'obliques'] },
@@ -471,8 +583,11 @@ const CATEGORIES = [
 export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkoutModal }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(containerRef, { once: true, margin: '-100px' });
+
+  // Start with lower-chest selected for exercises, but isZoomed: false so camera stays comfortably in FULL BODY overview!
   const [selectedMuscleId, setSelectedMuscleId] = useState<string>('lower-chest');
   const [activeCategory, setActiveCategory] = useState<string>('chest');
+  const [isZoomed, setIsZoomed] = useState<boolean>(false);
   const [isBackView, setIsBackView] = useState<boolean>(false);
   const orbitControlsRef = useRef<any>(null);
 
@@ -482,8 +597,9 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
 
   const selectMuscle = (id: string) => {
     setSelectedMuscleId(id);
+    setIsZoomed(true); // Smoothly focus zoom on clicked muscle
 
-    // Auto switch front/back orientation hint if muscle is posterior
+    // Auto switch front/back view if posterior muscle is clicked
     const posteriorMuscles = ['glutes', 'hamstrings', 'lats', 'traps', 'lower-back', 'rear-delts', 'triceps'];
     if (posteriorMuscles.includes(id)) {
       setIsBackView(true);
@@ -492,14 +608,13 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
     }
   };
 
-  const handleResetView = () => {
-    setSelectedMuscleId('default');
+  const handleResetFullBody = () => {
+    setIsZoomed(false);
     setIsBackView(false);
   };
 
-  const handleFlipView = () => {
+  const handleToggleBackView = () => {
     setIsBackView(!isBackView);
-    setSelectedMuscleId('default');
   };
 
   return (
@@ -508,28 +623,28 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
       ref={containerRef}
       className="relative w-full py-24 sm:py-32 bg-[#060608] text-white border-b border-white/10 overflow-hidden"
     >
-      {/* Ambient Lighting Glows */}
-      <div className="absolute top-1/3 left-1/4 -translate-y-1/2 w-[600px] h-[600px] bg-red-600/10 rounded-full blur-[180px] pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-[400px] h-[400px] bg-red-950/20 rounded-full blur-[140px] pointer-events-none" />
+      {/* Background Studio Lights */}
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-blue-950/20 rounded-full blur-[180px] pointer-events-none" />
+      <div className="absolute top-1/2 right-1/4 w-[500px] h-[500px] bg-red-600/10 rounded-full blur-[160px] pointer-events-none" />
 
       <div className="w-[92%] max-w-7xl mx-auto">
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
+        <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-600/10 border border-red-500/30 text-red-400 font-mono text-xs font-bold uppercase tracking-widest mb-4"
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-600/15 border border-red-500/40 text-red-400 font-mono text-xs font-bold uppercase tracking-widest mb-4 shadow-[0_0_20px_rgba(229,9,20,0.2)]"
           >
             <Target className="w-3.5 h-3.5 text-red-500" />
-            3D INTERACTIVE ANATOMY & BIOMECHANICS
+            3D HUMAN ANATOMY VISUALIZER
           </motion.div>
 
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-3xl sm:text-5xl lg:text-6xl font-black font-heading tracking-tight mb-4"
+            className="text-3xl sm:text-5xl lg:text-6xl font-black font-heading tracking-tight mb-4 text-white"
           >
             TARGET <span className="text-gradient-red">3D MUSCLE MAP</span>
           </motion.h2>
@@ -538,14 +653,14 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
             initial={{ opacity: 0, y: 20 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-gray-400 font-light text-sm sm:text-base max-w-2xl mx-auto"
+            className="text-gray-300 font-light text-sm sm:text-base max-w-2xl mx-auto leading-relaxed"
           >
-            Click any 3D muscle part to trigger a target zoom animation and view science-backed exercise protocols for every small and big muscle group.
+            Inspect the 3D athletic physique in real time. Click any muscle group — including Lower Chest, Glutes, Quads, Lats, and Arms — to zoom in and see elite workout routines.
           </motion.p>
         </div>
 
-        {/* Filter Category Tabs */}
-        <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-4 mb-8 scrollbar-none">
+        {/* Category Tabs */}
+        <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-3 mb-6 scrollbar-none">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.id}
@@ -554,13 +669,13 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
                 if (cat.subIds && cat.subIds.length > 0) {
                   selectMuscle(cat.subIds[0]);
                 } else {
-                  handleResetView();
+                  handleResetFullBody();
                 }
               }}
-              className={`shrink-0 px-4 py-2 rounded-full font-mono text-xs font-bold uppercase tracking-wider transition-all duration-300 border ${
+              className={`shrink-0 px-4 py-2 rounded-full font-mono text-xs font-bold uppercase tracking-wider transition-all duration-300 border cursor-pointer ${
                 activeCategory === cat.id
-                  ? 'bg-red-600 text-white border-red-500 shadow-[0_0_20px_rgba(229,9,20,0.4)] scale-105'
-                  : 'bg-white/5 text-gray-400 hover:text-white border-white/10 hover:bg-white/10'
+                  ? 'bg-red-600 text-white border-red-500 shadow-[0_0_20px_rgba(229,9,20,0.5)] scale-105'
+                  : 'bg-white/5 text-gray-300 hover:text-white border-white/10 hover:bg-white/15'
               }`}
             >
               {cat.label}
@@ -568,8 +683,8 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
           ))}
         </div>
 
-        {/* Specific Muscle Selection Chips */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
+        {/* Sub-Muscle Selection Pills */}
+        <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
           {MUSCLE_GROUPS.filter((m) => {
             if (activeCategory === 'all') return true;
             const currentCat = CATEGORIES.find((c) => c.id === activeCategory);
@@ -580,10 +695,10 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
               <button
                 key={m.id}
                 onClick={() => selectMuscle(m.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-heading font-extrabold uppercase tracking-wider transition-all duration-300 flex items-center gap-1.5 ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-heading font-extrabold uppercase tracking-wider transition-all duration-300 flex items-center gap-1.5 cursor-pointer ${
                   isSelected
-                    ? 'bg-gradient-to-r from-red-600 to-red-800 text-white border border-red-400 shadow-[0_0_15px_rgba(229,9,20,0.5)] scale-105'
-                    : 'bg-[#0E0E14] text-gray-300 hover:text-white border border-white/10 hover:border-red-500/40'
+                    ? 'bg-gradient-to-r from-red-600 to-red-800 text-white border border-red-400 shadow-[0_0_15px_rgba(229,9,20,0.6)] scale-105'
+                    : 'bg-[#151824] text-gray-200 hover:text-white border border-white/15 hover:border-red-500/50'
                 }`}
               >
                 {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 animate-ping" />}
@@ -593,82 +708,97 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
           })}
         </div>
 
-        {/* Main Stage: 3D Body Canvas on Left, Exercise Details Terminal on Right */}
+        {/* Main Stage Grid: 3D High-Contrast Canvas on Left, Exercise Panel on Right */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch">
           
-          {/* Left Column: Interactive 3D Canvas Stage */}
+          {/* Left Column: 3D High-Contrast Stage */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={isInView ? { opacity: 1, scale: 1 } : {}}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="lg:col-span-6 relative h-[520px] sm:h-[620px] rounded-3xl glass-panel border border-white/15 overflow-hidden shadow-2xl bg-[#09090E]/90 flex flex-col"
+            className="lg:col-span-6 relative h-[540px] sm:h-[640px] rounded-3xl border border-white/20 overflow-hidden shadow-2xl flex flex-col bg-gradient-to-b from-[#141824] via-[#0E111A] to-[#080A10]"
           >
             {/* Top Canvas Controls Bar */}
             <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-auto">
-              <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-[11px] font-mono text-gray-300">
+              <div className="flex items-center gap-2 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/15 text-[11px] font-mono text-gray-200">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>INTERACTIVE 3D • DRAG TO ROTATE</span>
+                <span>3D CONTROLS • DRAG TO ROTATE</span>
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Front / Back Flip Button */}
                 <button
-                  onClick={handleFlipView}
-                  className="px-3 py-1.5 rounded-xl bg-black/60 hover:bg-white/10 backdrop-blur-md border border-white/15 text-[11px] font-mono text-gray-200 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
-                  title="Flip Anterior / Posterior View"
+                  onClick={handleToggleBackView}
+                  className="px-3 py-1.5 rounded-xl bg-black/70 hover:bg-white/15 backdrop-blur-md border border-white/20 text-[11px] font-mono text-gray-100 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Flip Front / Back View"
                 >
-                  <Eye className="w-3.5 h-3.5 text-red-500" />
+                  <Eye className="w-3.5 h-3.5 text-red-400" />
                   <span>{isBackView ? 'FRONT VIEW' : 'BACK VIEW'}</span>
                 </button>
 
+                {/* Reset Full Body Zoom */}
                 <button
-                  onClick={handleResetView}
-                  className="p-2 rounded-xl bg-black/60 hover:bg-white/10 backdrop-blur-md border border-white/15 text-gray-300 hover:text-white transition-colors cursor-pointer"
-                  title="Reset Zoom & Camera"
+                  onClick={handleResetFullBody}
+                  className={`px-3 py-1.5 rounded-xl backdrop-blur-md border text-[11px] font-mono flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    !isZoomed
+                      ? 'bg-red-600/30 border-red-500/50 text-white'
+                      : 'bg-black/70 hover:bg-white/15 border-white/20 text-gray-200'
+                  }`}
+                  title="Reset to Full Body"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <RotateCcw className="w-3.5 h-3.5 text-gray-300" />
+                  <span>FULL BODY</span>
                 </button>
               </div>
             </div>
 
-            {/* Three.js 3D Viewport */}
+            {/* Three.js 3D Viewport with High-Contrast Lighting */}
             <div className="w-full h-full relative cursor-grab active:cursor-grabbing">
               <Canvas>
-                <ambientLight intensity={0.7} />
-                <directionalLight position={[5, 10, 5]} intensity={1.5} />
-                <directionalLight position={[-5, 5, -5]} intensity={1.0} color="#ff3333" />
-                <pointLight position={[0, 0, 3]} intensity={1.2} color="#ffffff" />
-                <pointLight position={[0, 0, -3]} intensity={1.0} color="#e50914" />
+                {/* Bright studio ambient light so model is never too dark */}
+                <ambientLight intensity={1.2} color="#E2E8F0" />
+                
+                {/* Key front light */}
+                <directionalLight position={[0, 4, 6]} intensity={2.0} color="#ffffff" />
+                
+                {/* Back Rim Light — creates glowing silhouette edge to separate body from background! */}
+                <directionalLight position={[0, 3, -5]} intensity={3.0} color="#60A5FA" />
+                
+                {/* Left & Right Accent fill lights */}
+                <directionalLight position={[-5, 0, 3]} intensity={1.2} color="#ffffff" />
+                <directionalLight position={[5, 0, 3]} intensity={1.2} color="#ffffff" />
 
-                <PerspectiveCamera makeDefault position={[0, 0, 4.2]} fov={45} />
+                <PerspectiveCamera makeDefault position={[0, -0.05, 4.6]} fov={45} />
 
                 <OrbitControls
                   ref={orbitControlsRef}
                   enableZoom={true}
-                  minDistance={1.4}
-                  maxDistance={6.0}
+                  minDistance={2.2}
+                  maxDistance={6.5}
                   enablePan={true}
-                  dampingFactor={0.05}
+                  dampingFactor={0.06}
                 />
 
                 <CameraController
                   selectedId={selectedMuscleId}
+                  isZoomed={isZoomed}
                   isBackView={isBackView}
                   manualControlsRef={orbitControlsRef}
                 />
 
-                <AnatomyMannequin
+                <SculptedHumanModel
                   selectedId={selectedMuscleId}
                   onSelect={(id) => selectMuscle(id)}
                 />
               </Canvas>
             </div>
 
-            {/* Bottom 3D Helper Badge */}
+            {/* Bottom 3D Guidance Bar */}
             <div className="absolute bottom-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
-              <span className="text-[10px] font-mono text-gray-400 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10">
-                CLICK BODY PART TO ZOOM
+              <span className="text-[11px] font-mono text-gray-300 bg-black/70 backdrop-blur-md px-3 py-1 rounded-lg border border-white/15">
+                CLICK ANY MUSCLE TO ZOOM
               </span>
-              <span className="text-[10px] font-mono font-bold text-red-400 bg-red-600/10 px-2.5 py-1 rounded-lg border border-red-500/30">
+              <span className="text-[11px] font-mono font-bold text-red-400 bg-red-950/80 backdrop-blur-md px-3 py-1 rounded-lg border border-red-500/40">
                 ACTIVE: {selectedMuscle.name.split('(')[0].trim()}
               </span>
             </div>
@@ -679,7 +809,7 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
             initial={{ opacity: 0, x: 30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="lg:col-span-6 flex flex-col justify-between glass-panel p-6 sm:p-8 rounded-3xl border border-white/15 shadow-2xl relative bg-[#0C0C12]/90 backdrop-blur-xl"
+            className="lg:col-span-6 flex flex-col justify-between glass-panel p-6 sm:p-8 rounded-3xl border border-white/15 shadow-2xl relative bg-[#0C0C12]/95 backdrop-blur-xl"
           >
             <AnimatePresence mode="wait">
               <motion.div
@@ -690,12 +820,12 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
                 transition={{ duration: 0.3 }}
                 className="space-y-6"
               >
-                {/* Muscle Badge & Name */}
+                {/* Muscle Badge & Title */}
                 <div className="flex items-start justify-between gap-4 pb-4 border-b border-white/10">
                   <div>
-                    <div className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold text-red-500 uppercase tracking-widest mb-1">
+                    <div className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest mb-1">
                       <Activity className="w-3.5 h-3.5 animate-pulse" />
-                      <span>TARGET BIOMECHANICS IDENTIFIER</span>
+                      <span>TARGET BIOMECHANICS & PROTOCOL</span>
                     </div>
                     <h3 className="text-2xl sm:text-3xl font-black font-heading text-white tracking-tight">
                       {selectedMuscle.name}
@@ -713,7 +843,7 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
                 </p>
 
                 {/* Biomechanics Focus Card */}
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex items-start gap-3">
+                <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex items-start gap-3">
                   <Zap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <div>
                     <span className="text-[10px] font-mono text-gray-400 uppercase tracking-widest block font-bold">
@@ -725,11 +855,11 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
                   </div>
                 </div>
 
-                {/* 4 Recommended Exercises List */}
+                {/* 4 Recommended Exercises */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-mono font-bold uppercase tracking-widest text-gray-400">
-                      OPTIMAL HYPERTROPHY MOVEMENTS (4 EXERCISES)
+                    <span className="text-xs font-mono font-bold uppercase tracking-widest text-gray-300">
+                      OPTIMAL EXERCISE MOVEMENTS (4 EXERCISES)
                     </span>
                     <span className="text-[10px] font-mono text-emerald-400 font-bold">
                       ✓ PEAK RECRUITMENT
@@ -766,7 +896,7 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
               </motion.div>
             </AnimatePresence>
 
-            {/* Action Bottom Bar */}
+            {/* Bottom Actions */}
             <div className="pt-6 mt-6 border-t border-white/10 flex flex-col sm:flex-row items-center gap-3">
               <button
                 onClick={() => onOpenWorkoutModal(selectedMuscle)}
