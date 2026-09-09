@@ -1,0 +1,119 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800;900&display=swap');
+
+:root {
+  color-scheme: dark;
+  --color-dark: #060608;
+  --color-card: #0D0D12;
+  --color-accent: #E50914;
+  --color-accent-glow: rgba(229, 9, 20, 0.4);
+}
+
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+html {
+  overflow-x: clip;
+}
+
+body {
+  background-color: var(--color-dark);
+  color: #F3F4F6;
+  font-family: 'Inter', sans-serif;
+  overflow-x: clip;
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Glassmorphism utility classes */
+.glass-panel {
+  background: rgba(13, 13, 18, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-hover {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel-hover:hover {
+  background: rgba(20, 20, 28, 0.85);
+  border-color: rgba(229, 9, 20, 0.4);
+  box-shadow: 0 10px 30px -10px rgba(229, 9, 20, 0.3);
+}
+
+.glass-nav {
+  background: rgba(6, 6, 8, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #FFFFFF 0%, #A1A1AA 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-red {
+  background: linear-gradient(135deg, #FF4D4D 0%, #E50914 50%, #990000 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-gold {
+  background: linear-gradient(135deg, #FFE259 0%, #FFA751 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #060608;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #232330;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #E50914;
+}
+
+/* Metallic Text Shadow */
+.metallic-text {
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8), 0 0 20px rgba(229, 9, 20, 0.3);
+}
+
+/* Hide default cursor on devices with fine pointer when custom cursor is active */
+@media (pointer: fine) {
+  .custom-cursor-active, .custom-cursor-active * {
+    cursor: none !important;
+  }
+}
