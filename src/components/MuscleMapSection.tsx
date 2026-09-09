@@ -1,40 +1,48 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import React, { useState, useRef, useMemo, useEffect, Suspense } from 'react';
+import { Canvas, useFrame, ThreeEvent } from '@react-three/fiber';
+import { OrbitControls, PerspectiveCamera, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
-import { Target, Dumbbell, Zap, ChevronRight, Activity, RotateCcw, Eye, ZoomIn, ZoomOut, Maximize2, Minimize2, X, MessageSquare, Sparkles } from 'lucide-react';
+import { Target, Dumbbell, Zap, ChevronRight, Activity, RotateCcw, Eye, ZoomIn, ZoomOut, Maximize2, Minimize2, MessageSquare, Sparkles, Loader2 } from 'lucide-react';
 import { MUSCLE_GROUPS, MuscleInfo } from '../data/gymData';
 
 interface MuscleMapSectionProps {
   onOpenWorkoutModal: (muscle: MuscleInfo) => void;
 }
 
-// Camera framing configurations for smooth focus transitions
+// Preload the real human body model asset
+useGLTF.preload('/geometries/human_body.glb');
+
+// Camera framing configurations — comfortable full-body & upper/lower body framing (NO jarring macro zoom)
 const CAMERA_PRESETS: Record<string, { pos: [number, number, number]; target: [number, number, number] }> = {
-  'upper-chest': { pos: [0, 0.7, 2.9], target: [0, 0.65, 0] },
-  'mid-chest': { pos: [0, 0.55, 2.9], target: [0, 0.55, 0] },
-  'lower-chest': { pos: [0, 0.45, 2.8], target: [0, 0.45, 0] },
-  'abs': { pos: [0, 0.15, 2.9], target: [0, 0.15, 0] },
-  'obliques': { pos: [0.25, 0.15, 2.9], target: [0.2, 0.15, 0] },
-  'front-delts': { pos: [-0.4, 0.8, 2.8], target: [-0.35, 0.75, 0] },
-  'side-delts': { pos: [-0.6, 0.8, 2.8], target: [-0.55, 0.75, 0] },
-  'biceps': { pos: [-0.65, 0.45, 2.8], target: [-0.6, 0.4, 0] },
-  'forearms': { pos: [-0.75, 0.1, 2.8], target: [-0.7, 0.05, 0] },
-  'quads': { pos: [0, -0.6, 3.0], target: [0, -0.6, 0] },
-  'calves': { pos: [0, -1.2, 2.8], target: [0, -1.2, 0] },
-  'glutes': { pos: [0, -0.15, -2.9], target: [0, -0.15, 0] },
-  'hamstrings': { pos: [0, -0.6, -3.0], target: [0, -0.6, 0] },
-  'lats': { pos: [0, 0.55, -3.0], target: [0, 0.55, 0] },
-  'traps': { pos: [0, 0.9, -2.9], target: [0, 0.85, 0] },
-  'lower-back': { pos: [0, 0.15, -2.9], target: [0, 0.15, 0] },
-  'rear-delts': { pos: [-0.45, 0.8, -2.8], target: [-0.4, 0.75, 0] },
-  'triceps': { pos: [-0.65, 0.45, -2.8], target: [-0.6, 0.4, 0] },
-  // Full Body Default
-  'default': { pos: [0, -0.05, 4.3], target: [0, -0.1, 0] },
+  // Chest
+  'upper-chest': { pos: [0, 0.35, 4.4], target: [0, 0.35, 0] },
+  'mid-chest': { pos: [0, 0.3, 4.4], target: [0, 0.3, 0] },
+  'lower-chest': { pos: [0, 0.25, 4.4], target: [0, 0.25, 0] },
+  // Core
+  'abs': { pos: [0, 0.05, 4.4], target: [0, 0.05, 0] },
+  'obliques': { pos: [0.2, 0.05, 4.4], target: [0.1, 0.05, 0] },
+  // Shoulders & Arms
+  'front-delts': { pos: [-0.25, 0.45, 4.4], target: [-0.15, 0.45, 0] },
+  'side-delts': { pos: [-0.3, 0.45, 4.4], target: [-0.2, 0.45, 0] },
+  'biceps': { pos: [-0.35, 0.3, 4.4], target: [-0.25, 0.3, 0] },
+  'forearms': { pos: [-0.4, 0.1, 4.4], target: [-0.3, 0.1, 0] },
+  // Legs
+  'quads': { pos: [0, -0.35, 4.4], target: [0, -0.35, 0] },
+  'calves': { pos: [0, -0.7, 4.4], target: [0, -0.7, 0] },
+  // Posterior Muscles (Camera automatically views from the back with negative Z)
+  'glutes': { pos: [0, -0.05, -4.4], target: [0, -0.05, 0] },
+  'hamstrings': { pos: [0, -0.35, -4.4], target: [0, -0.35, 0] },
+  'lats': { pos: [0, 0.3, -4.4], target: [0, 0.3, 0] },
+  'traps': { pos: [0, 0.55, -4.4], target: [0, 0.55, 0] },
+  'lower-back': { pos: [0, 0.1, -4.4], target: [0, 0.1, 0] },
+  'rear-delts': { pos: [-0.25, 0.45, -4.4], target: [-0.15, 0.45, 0] },
+  'triceps': { pos: [-0.35, 0.3, -4.4], target: [-0.25, 0.3, 0] },
+  // Full Body Default View (comfortable overview showing full head to toe)
+  'default': { pos: [0, -0.05, 4.7], target: [0, -0.05, 0] },
 };
 
-// Camera Controller that only animates on demand and releases control to the user
+// Smooth Camera Controller that only animates on user selection, then releases control to user
 function CameraRig({
   animTrigger,
   targetConfig,
@@ -57,15 +65,13 @@ function CameraRig({
   useFrame((state, delta) => {
     if (!isAnimating.current) return;
 
-    // Smooth lerp
-    state.camera.position.lerp(targetPos.current, delta * 3.5);
+    state.camera.position.lerp(targetPos.current, delta * 3.2);
 
     if (orbitControlsRef.current) {
-      orbitControlsRef.current.target.lerp(lookTarget.current, delta * 3.5);
+      orbitControlsRef.current.target.lerp(lookTarget.current, delta * 3.2);
       orbitControlsRef.current.update();
     }
 
-    // Once close enough, release animation lock so user has 100% free control
     if (state.camera.position.distanceTo(targetPos.current) < 0.04) {
       isAnimating.current = false;
     }
@@ -74,8 +80,8 @@ function CameraRig({
   return null;
 }
 
-// Individual Anatomical Muscle Component with matte clay surface & electric glow
-function MusclePart({
+// Glowing anatomical muscle highlight overlay component
+function MuscleHighlightMesh({
   muscleId,
   selectedId,
   onSelect,
@@ -97,11 +103,20 @@ function MusclePart({
   const meshRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
-    if (isSelected && meshRef.current) {
-      const pulse = Math.sin(state.clock.getElapsedTime() * 4.5) * 0.4 + 1.4;
+    if (meshRef.current) {
       const mat = meshRef.current.material as THREE.MeshStandardMaterial;
       if (mat) {
-        mat.emissiveIntensity = pulse;
+        if (isSelected) {
+          const pulse = Math.sin(state.clock.getElapsedTime() * 5.0) * 0.4 + 1.8;
+          mat.emissiveIntensity = pulse;
+          mat.opacity = 0.88;
+        } else if (hovered) {
+          mat.emissiveIntensity = 0.8;
+          mat.opacity = 0.65;
+        } else {
+          mat.emissiveIntensity = 0;
+          mat.opacity = 0;
+        }
       }
     }
   });
@@ -128,504 +143,425 @@ function MusclePart({
     >
       {geometry}
       <meshStandardMaterial
-        color={isSelected ? '#FF1122' : hovered ? '#FF4455' : '#D1D7E3'}
-        emissive={isSelected ? '#FF1122' : hovered ? '#FF2233' : '#000000'}
-        emissiveIntensity={isSelected ? 1.5 : hovered ? 0.4 : 0}
+        color={isSelected ? '#FF1122' : '#FF4455'}
+        emissive={isSelected ? '#FF0011' : '#FF3344'}
+        emissiveIntensity={isSelected ? 1.8 : 0}
+        transparent={true}
+        opacity={isSelected ? 0.88 : 0}
+        roughness={0.3}
         metalness={0.1}
-        roughness={0.45}
+        depthWrite={false}
       />
     </mesh>
   );
 }
 
-// Seamless A-Pose Athletic Human Body Model (like the reference clay sculpture)
-function SeamlessHumanSculpture({
-  selectedId,
-  onSelect,
+// Seamless Real 3D Athletic Human Model with sculpted digital clay aesthetic
+function RealAthleticHumanModel({
+  selectedMuscleId,
+  onSelectMuscle,
 }: {
-  selectedId: string;
-  onSelect: (id: string) => void;
+  selectedMuscleId: string;
+  onSelectMuscle: (id: string) => void;
 }) {
-  // Uniform matte clay material for continuous body hull (no gaps!)
-  const clayMat = useMemo(
-    () => (
-      <meshStandardMaterial
-        color="#D8DFEC"
-        metalness={0.08}
-        roughness={0.5}
-      />
-    ),
-    []
-  );
+  const { scene } = useGLTF('/geometries/human_body.glb');
+  const groupRef = useRef<THREE.Group>(null);
+  const modelRef = useRef<THREE.Group>(null);
+
+  // Apply smooth digital clay sculpture material matching user reference image
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone(true);
+    clone.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: '#D2DBE8',
+          roughness: 0.44,
+          metalness: 0.05,
+        });
+      }
+    });
+    return clone;
+  }, [scene]);
+
+  // Click on the 3D human body surface directly to detect and select the muscle!
+  const handleBodyClick = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    if (!e.point || !groupRef.current) return;
+    const local = groupRef.current.worldToLocal(e.point.clone());
+    const { x, y, z } = local;
+
+    // Detect muscle by anatomical coordinate bounds
+    if (y > 0.85) {
+      onSelectMuscle('traps');
+    } else if (y > 0.65 && y <= 0.85) {
+      if (z < -0.05) {
+        if (Math.abs(x) > 0.25) onSelectMuscle('rear-delts');
+        else onSelectMuscle('traps');
+      } else {
+        if (Math.abs(x) > 0.28) onSelectMuscle('front-delts');
+        else onSelectMuscle('upper-chest');
+      }
+    } else if (y > 0.45 && y <= 0.65) {
+      if (z < -0.05) {
+        if (Math.abs(x) > 0.3) onSelectMuscle('triceps');
+        else onSelectMuscle('lats');
+      } else {
+        if (Math.abs(x) > 0.3) onSelectMuscle('biceps');
+        else if (y > 0.58) onSelectMuscle('mid-chest');
+        else onSelectMuscle('lower-chest');
+      }
+    } else if (y > 0.15 && y <= 0.45) {
+      if (z < -0.05) {
+        onSelectMuscle('lower-back');
+      } else {
+        if (Math.abs(x) > 0.18) onSelectMuscle('obliques');
+        else onSelectMuscle('abs');
+      }
+    } else if (y > -0.15 && y <= 0.15) {
+      if (z < -0.02) onSelectMuscle('glutes');
+      else onSelectMuscle('quads');
+    } else if (y > -0.65 && y <= -0.15) {
+      if (z < -0.02) onSelectMuscle('hamstrings');
+      else onSelectMuscle('quads');
+    } else {
+      onSelectMuscle('calves');
+    }
+  };
 
   return (
-    <group position={[0, 0, 0]}>
-      {/* ===== UNIFIED CONTINUOUS BODY HULL (ELIMINATES ALL GAPS) ===== */}
-      {/* 1. Head & Jaw */}
-      <mesh position={[0, 1.48, 0]}>
-        <sphereGeometry args={[0.2, 32, 32]} />
-        {clayMat}
-      </mesh>
-      <mesh position={[0, 1.36, 0.04]} rotation={[0.2, 0, 0]}>
-        <coneGeometry args={[0.13, 0.16, 16]} />
-        {clayMat}
-      </mesh>
+    <group ref={groupRef} position={[0, -0.05, 0]}>
+      {/* 1. Real Continuous 3D Human Body Sculpt (ZERO Gaps, ZERO Primitive Mannequin Parts!) */}
+      <group
+        ref={modelRef}
+        scale={[2.55, 2.55, 2.55]}
+        rotation={[0, -Math.PI / 2, 0]}
+        onClick={handleBodyClick}
+      >
+        <primitive object={clonedScene} />
+      </group>
 
-      {/* 2. Neck (merges directly into shoulders & clavicles) */}
-      <mesh position={[0, 1.22, 0]}>
-        <cylinderGeometry args={[0.11, 0.15, 0.22, 20]} />
-        {clayMat}
-      </mesh>
-
-      {/* 3. Upper Torso Hull (Ribcage, Clavicles, Solid Core) */}
-      <mesh position={[0, 0.88, 0]}>
-        <cylinderGeometry args={[0.36, 0.3, 0.52, 24]} />
-        {clayMat}
-      </mesh>
-
-      {/* 4. Mid Torso / Waist Hull */}
-      <mesh position={[0, 0.45, 0]}>
-        <cylinderGeometry args={[0.3, 0.26, 0.42, 24]} />
-        {clayMat}
-      </mesh>
-
-      {/* 5. Pelvis / Hip Core (seamlessly merges into thighs) */}
-      <mesh position={[0, 0.05, 0]}>
-        <cylinderGeometry args={[0.26, 0.32, 0.42, 24]} />
-        {clayMat}
-      </mesh>
-
-      {/* 6. Arms Hull (A-Pose Angle: ~38° natural flare) */}
-      {/* Left Shoulder Joint Sphere (seamless transition) */}
-      <mesh position={[-0.45, 0.98, 0]}>
-        <sphereGeometry args={[0.15, 20, 20]} />
-        {clayMat}
-      </mesh>
-      {/* Left Upper Arm (overlapping into shoulder & elbow) */}
-      <mesh position={[-0.66, 0.72, 0]} rotation={[0, 0, 0.65]}>
-        <cylinderGeometry args={[0.12, 0.1, 0.48, 20]} />
-        {clayMat}
-      </mesh>
-      {/* Left Forearm (tapering to wrist in A-pose) */}
-      <mesh position={[-0.94, 0.34, 0]} rotation={[0, 0, 0.65]}>
-        <cylinderGeometry args={[0.09, 0.06, 0.52, 20]} />
-        {clayMat}
-      </mesh>
-      {/* Left Hand in A-pose */}
-      <mesh position={[-1.16, 0.03, 0]} rotation={[0, 0, 0.65]}>
-        <boxGeometry args={[0.07, 0.18, 0.12]} />
-        {clayMat}
-      </mesh>
-
-      {/* Right Shoulder Joint */}
-      <mesh position={[0.45, 0.98, 0]}>
-        <sphereGeometry args={[0.15, 20, 20]} />
-        {clayMat}
-      </mesh>
-      {/* Right Upper Arm */}
-      <mesh position={[0.66, 0.72, 0]} rotation={[0, 0, -0.65]}>
-        <cylinderGeometry args={[0.12, 0.1, 0.48, 20]} />
-        {clayMat}
-      </mesh>
-      {/* Right Forearm */}
-      <mesh position={[0.94, 0.34, 0]} rotation={[0, 0, -0.65]}>
-        <cylinderGeometry args={[0.09, 0.06, 0.52, 20]} />
-        {clayMat}
-      </mesh>
-      {/* Right Hand */}
-      <mesh position={[1.16, 0.03, 0]} rotation={[0, 0, -0.65]}>
-        <boxGeometry args={[0.07, 0.18, 0.12]} />
-        {clayMat}
-      </mesh>
-
-      {/* 7. Legs Hull (Athletic Standing Stance) */}
-      {/* Left Thigh Core */}
-      <mesh position={[-0.2, -0.42, 0]}>
-        <cylinderGeometry args={[0.18, 0.13, 0.62, 24]} />
-        {clayMat}
-      </mesh>
-      {/* Left Knee Joint */}
-      <mesh position={[-0.2, -0.76, 0]}>
-        <sphereGeometry args={[0.11, 18, 18]} />
-        {clayMat}
-      </mesh>
-      {/* Left Lower Leg / Shin */}
-      <mesh position={[-0.2, -1.16, 0]}>
-        <cylinderGeometry args={[0.11, 0.07, 0.7, 20]} />
-        {clayMat}
-      </mesh>
-      {/* Left Foot */}
-      <mesh position={[-0.2, -1.54, 0.06]}>
-        <boxGeometry args={[0.12, 0.08, 0.26]} />
-        {clayMat}
-      </mesh>
-
-      {/* Right Thigh Core */}
-      <mesh position={[0.2, -0.42, 0]}>
-        <cylinderGeometry args={[0.18, 0.13, 0.62, 24]} />
-        {clayMat}
-      </mesh>
-      {/* Right Knee Joint */}
-      <mesh position={[0.2, -0.76, 0]}>
-        <sphereGeometry args={[0.11, 18, 18]} />
-        {clayMat}
-      </mesh>
-      {/* Right Lower Leg / Shin */}
-      <mesh position={[0.2, -1.16, 0]}>
-        <cylinderGeometry args={[0.11, 0.07, 0.7, 20]} />
-        {clayMat}
-      </mesh>
-      {/* Right Foot */}
-      <mesh position={[0.2, -1.54, 0.06]}>
-        <boxGeometry args={[0.12, 0.08, 0.26]} />
-        {clayMat}
-      </mesh>
-
-      {/* ===== INTERACTIVE ANATOMICAL MUSCLE LAYERS (EMBEDDED SEAMLESSLY) ===== */}
-
-      {/* --- TRAPS (Upper Back & Neck) --- */}
-      <MusclePart
-        muscleId="traps"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0, 1.15, -0.06]}
-        rotation={[-0.12, 0, 0]}
-        scale={[1.2, 0.9, 0.9]}
-        geometry={<boxGeometry args={[0.46, 0.22, 0.16]} />}
-      />
-
-      {/* --- SHOULDERS (Front, Side, Rear Delts) --- */}
-      <MusclePart
-        muscleId="front-delts"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.45, 0.98, 0.08]}
-        geometry={<sphereGeometry args={[0.14, 20, 20]} />}
-      />
-      <MusclePart
-        muscleId="front-delts"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.45, 0.98, 0.08]}
-        geometry={<sphereGeometry args={[0.14, 20, 20]} />}
-      />
-      <MusclePart
-        muscleId="side-delts"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.52, 0.95, 0]}
-        scale={[1, 1.3, 1]}
-        geometry={<sphereGeometry args={[0.14, 20, 20]} />}
-      />
-      <MusclePart
-        muscleId="side-delts"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.52, 0.95, 0]}
-        scale={[1, 1.3, 1]}
-        geometry={<sphereGeometry args={[0.14, 20, 20]} />}
-      />
-      <MusclePart
-        muscleId="rear-delts"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.45, 0.98, -0.08]}
-        geometry={<sphereGeometry args={[0.14, 20, 20]} />}
-      />
-      <MusclePart
-        muscleId="rear-delts"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.45, 0.98, -0.08]}
-        geometry={<sphereGeometry args={[0.14, 20, 20]} />}
-      />
+      {/* 2. Anatomical Interactive Highlight Glow Layers (Conforming smoothly to the body) */}
 
       {/* --- UPPER CHEST (Clavicular Head) --- */}
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="upper-chest"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.17, 0.9, 0.13]}
-        rotation={[0.1, 0, 0.18]}
-        scale={[1.3, 0.75, 0.9]}
-        geometry={<boxGeometry args={[0.24, 0.15, 0.15]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.10, 0.69, 0.14]}
+        rotation={[0.1, 0, 0.15]}
+        scale={[1.0, 0.45, 0.35]}
+        geometry={<sphereGeometry args={[0.11, 24, 24]} />}
       />
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="upper-chest"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.17, 0.9, 0.13]}
-        rotation={[0.1, 0, -0.18]}
-        scale={[1.3, 0.75, 0.9]}
-        geometry={<boxGeometry args={[0.24, 0.15, 0.15]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.10, 0.69, 0.14]}
+        rotation={[0.1, 0, -0.15]}
+        scale={[1.0, 0.45, 0.35]}
+        geometry={<sphereGeometry args={[0.11, 24, 24]} />}
       />
 
-      {/* --- MIDDLE CHEST (Sternal Head) --- */}
-      <MusclePart
+      {/* --- MID CHEST (Sternal Head) --- */}
+      <MuscleHighlightMesh
         muscleId="mid-chest"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.18, 0.76, 0.14]}
-        scale={[1.3, 0.9, 1]}
-        geometry={<boxGeometry args={[0.26, 0.17, 0.15]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.11, 0.61, 0.15]}
+        rotation={[0.04, 0, 0]}
+        scale={[1.05, 0.5, 0.35]}
+        geometry={<sphereGeometry args={[0.12, 24, 24]} />}
       />
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="mid-chest"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.18, 0.76, 0.14]}
-        scale={[1.3, 0.9, 1]}
-        geometry={<boxGeometry args={[0.26, 0.17, 0.15]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.11, 0.61, 0.15]}
+        rotation={[0.04, 0, 0]}
+        scale={[1.05, 0.5, 0.35]}
+        geometry={<sphereGeometry args={[0.12, 24, 24]} />}
       />
 
       {/* --- LOWER CHEST (Abdominal Head Underline) --- */}
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="lower-chest"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.16, 0.63, 0.12]}
-        rotation={[-0.05, 0, -0.12]}
-        scale={[1.3, 0.65, 0.9]}
-        geometry={<boxGeometry args={[0.25, 0.12, 0.14]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.10, 0.53, 0.15]}
+        rotation={[-0.08, 0, -0.1]}
+        scale={[1.0, 0.35, 0.3]}
+        geometry={<sphereGeometry args={[0.11, 24, 24]} />}
       />
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="lower-chest"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.16, 0.63, 0.12]}
-        rotation={[-0.05, 0, 0.12]}
-        scale={[1.3, 0.65, 0.9]}
-        geometry={<boxGeometry args={[0.25, 0.12, 0.14]} />}
-      />
-
-      {/* --- LATS (V-Taper Sweep) --- */}
-      <MusclePart
-        muscleId="lats"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.3, 0.68, -0.07]}
-        rotation={[0, 0, 0.22]}
-        scale={[1.1, 1.6, 1]}
-        geometry={<boxGeometry args={[0.22, 0.32, 0.16]} />}
-      />
-      <MusclePart
-        muscleId="lats"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.3, 0.68, -0.07]}
-        rotation={[0, 0, -0.22]}
-        scale={[1.1, 1.6, 1]}
-        geometry={<boxGeometry args={[0.22, 0.32, 0.16]} />}
-      />
-
-      {/* --- LOWER BACK (Spinal Erectors) --- */}
-      <MusclePart
-        muscleId="lower-back"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.08, 0.35, -0.09]}
-        geometry={<cylinderGeometry args={[0.06, 0.07, 0.36, 16]} />}
-      />
-      <MusclePart
-        muscleId="lower-back"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.08, 0.35, -0.09]}
-        geometry={<cylinderGeometry args={[0.06, 0.07, 0.36, 16]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.10, 0.53, 0.15]}
+        rotation={[-0.08, 0, 0.1]}
+        scale={[1.0, 0.35, 0.3]}
+        geometry={<sphereGeometry args={[0.11, 24, 24]} />}
       />
 
       {/* --- ABDOMINALS (6-Pack Rectus Abdominis) --- */}
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="abs"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.07, 0.48, 0.12]}
-        geometry={<boxGeometry args={[0.12, 0.1, 0.1]} />}
-      />
-      <MusclePart
-        muscleId="abs"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.07, 0.48, 0.12]}
-        geometry={<boxGeometry args={[0.12, 0.1, 0.1]} />}
-      />
-      <MusclePart
-        muscleId="abs"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.07, 0.35, 0.11]}
-        geometry={<boxGeometry args={[0.12, 0.1, 0.1]} />}
-      />
-      <MusclePart
-        muscleId="abs"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.07, 0.35, 0.11]}
-        geometry={<boxGeometry args={[0.12, 0.1, 0.1]} />}
-      />
-      <MusclePart
-        muscleId="abs"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.07, 0.22, 0.1]}
-        geometry={<boxGeometry args={[0.12, 0.1, 0.1]} />}
-      />
-      <MusclePart
-        muscleId="abs"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.07, 0.22, 0.1]}
-        geometry={<boxGeometry args={[0.12, 0.1, 0.1]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0, 0.35, 0.13]}
+        scale={[0.85, 1.4, 0.35]}
+        geometry={<boxGeometry args={[0.20, 0.26, 0.06]} />}
       />
 
       {/* --- OBLIQUES (Flank Core) --- */}
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="obliques"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.24, 0.34, 0.04]}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.19, 0.33, 0.07]}
         rotation={[0, 0, 0.12]}
-        scale={[1, 1.4, 1]}
-        geometry={<boxGeometry args={[0.14, 0.28, 0.14]} />}
+        scale={[0.7, 1.3, 0.6]}
+        geometry={<sphereGeometry args={[0.11, 20, 20]} />}
       />
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="obliques"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.24, 0.34, 0.04]}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.19, 0.33, 0.07]}
         rotation={[0, 0, -0.12]}
-        scale={[1, 1.4, 1]}
-        geometry={<boxGeometry args={[0.14, 0.28, 0.14]} />}
+        scale={[0.7, 1.3, 0.6]}
+        geometry={<sphereGeometry args={[0.11, 20, 20]} />}
       />
 
-      {/* --- ARMS: BICEPS & TRICEPS (A-Pose) --- */}
-      <MusclePart
+      {/* --- SHOULDERS: FRONT, SIDE, REAR DELTS --- */}
+      <MuscleHighlightMesh
+        muscleId="front-delts"
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.28, 0.72, 0.08]}
+        scale={[0.9, 0.9, 0.7]}
+        geometry={<sphereGeometry args={[0.11, 20, 20]} />}
+      />
+      <MuscleHighlightMesh
+        muscleId="front-delts"
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.28, 0.72, 0.08]}
+        scale={[0.9, 0.9, 0.7]}
+        geometry={<sphereGeometry args={[0.11, 20, 20]} />}
+      />
+      <MuscleHighlightMesh
+        muscleId="side-delts"
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.32, 0.70, 0.01]}
+        scale={[0.9, 1.1, 0.7]}
+        geometry={<sphereGeometry args={[0.10, 20, 20]} />}
+      />
+      <MuscleHighlightMesh
+        muscleId="side-delts"
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.32, 0.70, 0.01]}
+        scale={[0.9, 1.1, 0.7]}
+        geometry={<sphereGeometry args={[0.10, 20, 20]} />}
+      />
+      <MuscleHighlightMesh
+        muscleId="rear-delts"
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.28, 0.72, -0.07]}
+        scale={[0.9, 0.9, 0.7]}
+        geometry={<sphereGeometry args={[0.11, 20, 20]} />}
+      />
+      <MuscleHighlightMesh
+        muscleId="rear-delts"
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.28, 0.72, -0.07]}
+        scale={[0.9, 0.9, 0.7]}
+        geometry={<sphereGeometry args={[0.11, 20, 20]} />}
+      />
+
+      {/* --- ARMS: BICEPS & TRICEPS --- */}
+      <MuscleHighlightMesh
         muscleId="biceps"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.64, 0.72, 0.05]}
-        rotation={[0, 0, 0.65]}
-        scale={[1, 1.3, 1]}
-        geometry={<sphereGeometry args={[0.1, 16, 16]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.35, 0.52, 0.04]}
+        rotation={[0, 0, 0.3]}
+        scale={[0.7, 1.2, 0.7]}
+        geometry={<sphereGeometry args={[0.08, 18, 18]} />}
       />
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="biceps"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.64, 0.72, 0.05]}
-        rotation={[0, 0, -0.65]}
-        scale={[1, 1.3, 1]}
-        geometry={<sphereGeometry args={[0.1, 16, 16]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.35, 0.52, 0.04]}
+        rotation={[0, 0, -0.3]}
+        scale={[0.7, 1.2, 0.7]}
+        geometry={<sphereGeometry args={[0.08, 18, 18]} />}
       />
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="triceps"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.64, 0.72, -0.05]}
-        rotation={[0, 0, 0.65]}
-        scale={[1.1, 1.4, 1]}
-        geometry={<sphereGeometry args={[0.11, 16, 16]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.35, 0.52, -0.05]}
+        rotation={[0, 0, 0.3]}
+        scale={[0.8, 1.3, 0.7]}
+        geometry={<sphereGeometry args={[0.09, 18, 18]} />}
       />
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="triceps"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.64, 0.72, -0.05]}
-        rotation={[0, 0, -0.65]}
-        scale={[1.1, 1.4, 1]}
-        geometry={<sphereGeometry args={[0.11, 16, 16]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.35, 0.52, -0.05]}
+        rotation={[0, 0, -0.3]}
+        scale={[0.8, 1.3, 0.7]}
+        geometry={<sphereGeometry args={[0.09, 18, 18]} />}
       />
 
       {/* --- FOREARMS --- */}
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="forearms"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.92, 0.35, 0]}
-        rotation={[0, 0, 0.65]}
-        geometry={<cylinderGeometry args={[0.08, 0.06, 0.44, 16]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.43, 0.28, 0.02]}
+        rotation={[0, 0, 0.22]}
+        scale={[0.6, 1.3, 0.6]}
+        geometry={<sphereGeometry args={[0.07, 16, 16]} />}
       />
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="forearms"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.92, 0.35, 0]}
-        rotation={[0, 0, -0.65]}
-        geometry={<cylinderGeometry args={[0.08, 0.06, 0.44, 16]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.43, 0.28, 0.02]}
+        rotation={[0, 0, -0.22]}
+        scale={[0.6, 1.3, 0.6]}
+        geometry={<sphereGeometry args={[0.07, 16, 16]} />}
       />
 
-      {/* --- GLUTES (Gluteus Maximus - Seamlessly on Hips) --- */}
-      <MusclePart
+      {/* --- POSTERIOR: TRAPS & LATS & LOWER BACK --- */}
+      <MuscleHighlightMesh
+        muscleId="traps"
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0, 0.78, -0.06]}
+        rotation={[-0.08, 0, 0]}
+        scale={[1.3, 0.8, 0.5]}
+        geometry={<sphereGeometry args={[0.16, 24, 24]} />}
+      />
+      <MuscleHighlightMesh
+        muscleId="lats"
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.18, 0.50, -0.07]}
+        rotation={[0, 0, 0.18]}
+        scale={[0.8, 1.4, 0.5]}
+        geometry={<sphereGeometry args={[0.14, 24, 24]} />}
+      />
+      <MuscleHighlightMesh
+        muscleId="lats"
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.18, 0.50, -0.07]}
+        rotation={[0, 0, -0.18]}
+        scale={[0.8, 1.4, 0.5]}
+        geometry={<sphereGeometry args={[0.14, 24, 24]} />}
+      />
+      <MuscleHighlightMesh
+        muscleId="lower-back"
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0, 0.28, -0.08]}
+        scale={[0.9, 1.3, 0.4]}
+        geometry={<boxGeometry args={[0.16, 0.22, 0.06]} />}
+      />
+
+      {/* --- GLUTES (Gluteus Maximus — Posterior Hips) --- */}
+      <MuscleHighlightMesh
         muscleId="glutes"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.16, -0.05, -0.12]}
-        scale={[1.2, 1.1, 1.2]}
-        geometry={<sphereGeometry args={[0.2, 24, 24]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.12, 0.06, -0.11]}
+        scale={[1.05, 1.0, 1.05]}
+        geometry={<sphereGeometry args={[0.15, 24, 24]} />}
       />
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="glutes"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.16, -0.05, -0.12]}
-        scale={[1.2, 1.1, 1.2]}
-        geometry={<sphereGeometry args={[0.2, 24, 24]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.12, 0.06, -0.11]}
+        scale={[1.05, 1.0, 1.05]}
+        geometry={<sphereGeometry args={[0.15, 24, 24]} />}
       />
 
-      {/* --- QUADS (Front Thigh Sweep) --- */}
-      <MusclePart
+      {/* --- QUADS (Front Thighs) --- */}
+      <MuscleHighlightMesh
         muscleId="quads"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.19, -0.45, 0.08]}
-        scale={[1.1, 1.4, 1]}
-        geometry={<cylinderGeometry args={[0.14, 0.1, 0.52, 20]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.14, -0.32, 0.10]}
+        scale={[0.9, 1.6, 0.8]}
+        geometry={<sphereGeometry args={[0.13, 24, 24]} />}
       />
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="quads"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.19, -0.45, 0.08]}
-        scale={[1.1, 1.4, 1]}
-        geometry={<cylinderGeometry args={[0.14, 0.1, 0.52, 20]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.14, -0.32, 0.10]}
+        scale={[0.9, 1.6, 0.8]}
+        geometry={<sphereGeometry args={[0.13, 24, 24]} />}
       />
 
-      {/* --- HAMSTRINGS (Rear Thigh Columns) --- */}
-      <MusclePart
+      {/* --- HAMSTRINGS (Rear Thighs) --- */}
+      <MuscleHighlightMesh
         muscleId="hamstrings"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.19, -0.45, -0.08]}
-        scale={[1.1, 1.4, 1]}
-        geometry={<cylinderGeometry args={[0.13, 0.1, 0.52, 20]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.14, -0.32, -0.08]}
+        scale={[0.9, 1.6, 0.8]}
+        geometry={<sphereGeometry args={[0.12, 24, 24]} />}
       />
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="hamstrings"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.19, -0.45, -0.08]}
-        scale={[1.1, 1.4, 1]}
-        geometry={<cylinderGeometry args={[0.13, 0.1, 0.52, 20]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.14, -0.32, -0.08]}
+        scale={[0.9, 1.6, 0.8]}
+        geometry={<sphereGeometry args={[0.12, 24, 24]} />}
       />
 
       {/* --- CALVES (Diamond Gastrocnemius Heads) --- */}
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="calves"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[-0.2, -1.08, -0.04]}
-        scale={[1.2, 1.4, 1.2]}
-        geometry={<sphereGeometry args={[0.11, 20, 20]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[-0.14, -0.74, -0.05]}
+        scale={[0.9, 1.4, 0.9]}
+        geometry={<sphereGeometry args={[0.10, 20, 20]} />}
       />
-      <MusclePart
+      <MuscleHighlightMesh
         muscleId="calves"
-        selectedId={selectedId}
-        onSelect={onSelect}
-        position={[0.2, -1.08, -0.04]}
-        scale={[1.2, 1.4, 1.2]}
-        geometry={<sphereGeometry args={[0.11, 20, 20]} />}
+        selectedId={selectedMuscleId}
+        onSelect={onSelectMuscle}
+        position={[0.14, -0.74, -0.05]}
+        scale={[0.9, 1.4, 0.9]}
+        geometry={<sphereGeometry args={[0.10, 20, 20]} />}
       />
     </group>
+  );
+}
+
+// Loading fallback spinner for 3D canvas
+function CanvasLoader() {
+  return (
+    <mesh position={[0, 0, 0]}>
+      <sphereGeometry args={[0.3, 16, 16]} />
+      <meshStandardMaterial color="#333A48" wireframe />
+    </mesh>
   );
 }
 
@@ -654,13 +590,14 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
   const [isFullscreen, setIsFullscreen] = useState(false);
   const orbitControlsRef = useRef<any>(null);
 
+  // Default to full body view initially so user sees the complete model immediately
   const [cameraConfig, setCameraConfig] = useState(CAMERA_PRESETS['default']);
 
   const selectedMuscle = useMemo(() => {
     return MUSCLE_GROUPS.find((m) => m.id === selectedMuscleId) || MUSCLE_GROUPS[0];
   }, [selectedMuscleId]);
 
-  // Handle muscle selection with gentle, smooth framing (NOT jarring macro zoom)
+  // Handle muscle selection with gentle framing
   const selectMuscle = (id: string) => {
     setSelectedMuscleId(id);
 
@@ -685,8 +622,8 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
     const nextBack = !isBackView;
     setIsBackView(nextBack);
     setCameraConfig({
-      pos: [0, -0.05, nextBack ? -4.3 : 4.3],
-      target: [0, -0.1, 0],
+      pos: [0, 0.05, nextBack ? -4.4 : 4.4],
+      target: [0, 0, 0],
     });
     setAnimTrigger((prev) => prev + 1);
   };
@@ -694,7 +631,7 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
   // Manual zoom in/out steps
   const handleZoomStep = (direction: 'in' | 'out') => {
     if (!orbitControlsRef.current) return;
-    const factor = direction === 'in' ? 0.8 : 1.25;
+    const factor = direction === 'in' ? 0.85 : 1.18;
     const camera = orbitControlsRef.current.object;
     if (camera) {
       camera.position.multiplyScalar(factor);
@@ -714,21 +651,21 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
   // Shared 3D Viewport component (used in embedded card and full-screen modal)
   const render3DCanvas = () => (
     <Canvas>
-      {/* Studio Lighting Rig matching Blender / ZBrush clay render */}
-      <ambientLight intensity={1.1} color="#E6EDF8" />
-      <directionalLight position={[0, 4, 6]} intensity={1.8} color="#ffffff" />
-      {/* Backlight / Rim light for athletic silhouette edge */}
-      <directionalLight position={[0, 3, -5]} intensity={2.8} color="#7BA4D5" />
-      <directionalLight position={[-4, 1, 2]} intensity={0.9} color="#ffffff" />
-      <directionalLight position={[4, 1, 2]} intensity={0.9} color="#ffffff" />
+      {/* Studio Lighting Rig matching Blender / ZBrush digital clay render */}
+      <ambientLight intensity={1.2} color="#E8F0FE" />
+      <directionalLight position={[0, 4, 6]} intensity={2.0} color="#ffffff" />
+      {/* Cool Rim / Backlight catching the muscular silhouettes */}
+      <directionalLight position={[0, 3, -5]} intensity={3.0} color="#8BB0E0" />
+      <directionalLight position={[-4, 1, 2]} intensity={1.0} color="#ffffff" />
+      <directionalLight position={[4, 1, 2]} intensity={1.0} color="#ffffff" />
 
-      <PerspectiveCamera makeDefault position={[0, -0.05, 4.3]} fov={45} />
+      <PerspectiveCamera makeDefault position={[0, 0.05, 4.4]} fov={45} />
 
       <OrbitControls
         ref={orbitControlsRef}
         enableZoom={true}
-        minDistance={1.8}
-        maxDistance={6.8}
+        minDistance={2.0}
+        maxDistance={7.0}
         enablePan={true}
         dampingFactor={0.06}
       />
@@ -739,10 +676,12 @@ export const MuscleMapSection: React.FC<MuscleMapSectionProps> = ({ onOpenWorkou
         orbitControlsRef={orbitControlsRef}
       />
 
-      <SeamlessHumanSculpture
-        selectedId={selectedMuscleId}
-        onSelect={(id) => selectMuscle(id)}
-      />
+      <Suspense fallback={<CanvasLoader />}>
+        <RealAthleticHumanModel
+          selectedMuscleId={selectedMuscleId}
+          onSelectMuscle={(id) => selectMuscle(id)}
+        />
+      </Suspense>
     </Canvas>
   );
 
