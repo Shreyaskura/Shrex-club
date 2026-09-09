@@ -108,6 +108,7 @@ export const ScrollStory: React.FC = () => {
 
   return (
     <div
+      id="about"
       ref={containerRef}
       className="relative w-full h-[220vh] bg-[#060608] border-b border-white/10"
     >

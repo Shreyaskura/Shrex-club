@@ -5,7 +5,6 @@ import { CustomCursor } from './components/CustomCursor';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { LiveStatusBar } from './components/LiveStatusBar';
-import { Equipment3DSection } from './components/Equipment3DSection';
 import { ScrollStory } from './components/ScrollStory';
 import { ProgramsSection } from './components/ProgramsSection';
 import { MuscleMapSection } from './components/MuscleMapSection';
@@ -121,10 +120,7 @@ export default function App() {
             {/* 2. Live Gym Status Bar */}
             <LiveStatusBar />
 
-            {/* 3. 3D Gym Equipment Showcase */}
-            <Equipment3DSection />
-
-            {/* 4. About The Club — Scroll Story */}
+            {/* 3. About The Club — Scroll Story */}
             <ScrollStory />
 
             {/* 5. Training Programs */}

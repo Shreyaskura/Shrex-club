@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, ChevronRight, Zap, Shield } from 'lucide-react';
 
@@ -23,20 +23,40 @@ const NAV_ITEMS = [
 
 export const Navbar: React.FC<NavbarProps> = ({ onJoinClick, onOpenAdmin }) => {
   const [scrolled, setScrolled] = useState(false);
+  const [visible, setVisible] = useState(true);
   const [activeSection, setActiveSection] = useState('hero');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const lastScrollYRef = useRef(0);
 
   useEffect(() => {
     const handleScroll = () => {
-      if (window.scrollY > 40) {
-        setScrolled(true);
-      } else {
-        setScrolled(false);
+      const currentScrollY = window.scrollY;
+      const prevScrollY = lastScrollYRef.current;
+
+      // Close mobile drawer menu on scroll
+      if (Math.abs(currentScrollY - prevScrollY) > 15) {
+        setMobileMenuOpen(false);
       }
+
+      if (currentScrollY <= 40) {
+        setScrolled(false);
+        setVisible(true);
+      } else {
+        setScrolled(true);
+        // If scrolling down, hide navbar so it doesn't block mobile screen
+        if (currentScrollY > prevScrollY && currentScrollY > 80) {
+          setVisible(false);
+        } else {
+          // If scrolling up, show navbar
+          setVisible(true);
+        }
+      }
+
+      lastScrollYRef.current = currentScrollY;
 
       // Detect active section
       const sections = NAV_ITEMS.map((item) => item.href.substring(1));
-      const scrollPosition = window.scrollY + 200;
+      const scrollPosition = currentScrollY + 200;
 
       for (let i = sections.length - 1; i >= 0; i--) {
         const sectionEl = document.getElementById(sections[i]);
@@ -47,7 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onJoinClick, onOpenAdmin }) => {
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -68,17 +88,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onJoinClick, onOpenAdmin }) => {
     <>
       <motion.header
         initial={{ y: -100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 flex justify-center ${
-          scrolled ? 'py-3' : 'py-6'
+        animate={{ y: visible ? 0 : -100, opacity: visible ? 1 : 0 }}
+        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 flex justify-center pointer-events-none ${
+          scrolled ? 'py-2.5 sm:py-3' : 'py-4 sm:py-6'
         }`}
       >
         <div
-          className={`w-[92%] max-w-7xl mx-auto rounded-2xl transition-all duration-500 flex items-center justify-between px-5 sm:px-8 ${
+          className={`w-[92%] max-w-7xl mx-auto rounded-2xl transition-all duration-300 flex items-center justify-between px-4 sm:px-8 pointer-events-auto ${
             scrolled
-              ? 'glass-nav py-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.8)] border border-white/10'
-              : 'bg-transparent py-4 border border-transparent'
+              ? 'glass-nav py-2.5 sm:py-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.8)] border border-white/10'
+              : 'bg-transparent py-3 sm:py-4 border border-transparent'
           }`}
         >
           {/* Logo */}

@@ -171,75 +171,219 @@ export const PROGRAMS: Program[] = [
 
 export const MUSCLE_GROUPS: MuscleInfo[] = [
   {
-    id: 'chest',
-    name: 'CHEST (PECTORALIS MAJOR)',
-    description: 'The primary pushing muscle group responsible for horizontal adduction and upper torso power.',
-    biomechanics: 'Scapular stability with full elbow extension under load.',
+    id: 'upper-chest',
+    name: 'UPPER CHEST (CLAVICULAR HEAD)',
+    description: 'The clavicular head of the pectoralis major fills out the upper torso beneath the collarbone for an armored chest aesthetic.',
+    biomechanics: 'Shoulder flexion with horizontal adduction at a 30° to 45° incline angle.',
     recommendedExercises: [
-      { name: 'Flat Incline Barbell Press', sets: '4 Sets × 8-10 Reps', target: 'Upper Pectoralis & Anterior Deltoid' },
-      { name: 'Incline Heavy Dumbbell Press', sets: '3 Sets × 10-12 Reps', target: 'Clavicular Head Hypertrophy' },
-      { name: 'Low-to-High Cable Crossovers', sets: '3 Sets × 15 Reps', target: 'Inner Squeeze & Peak Isolation' },
-      { name: 'Weighted Parallel Bar Dips', sets: '4 Sets × 8 Reps', target: 'Lower Sternal Margin' }
+      { name: '30° Incline Dumbbell Press', sets: '4 Sets × 8-10 Reps', target: 'Clavicular Pectoral Fibers' },
+      { name: 'Low-to-High Cable Flyes', sets: '3 Sets × 12-15 Reps', target: 'Upper Sternum Squeeze' },
+      { name: 'Incline Smith Machine Press', sets: '4 Sets × 8 Reps', target: 'Heavy Hypertrophic Overload' },
+      { name: 'Reverse-Grip Barbell Bench', sets: '3 Sets × 10 Reps', target: 'Upper Pec Activation' }
     ]
   },
   {
-    id: 'shoulders',
-    name: 'SHOULDERS (DELTOIDS)',
-    description: 'Tri-headed muscle complex giving 3D width, cap appearance, and shoulder girdle mobility.',
-    biomechanics: 'Abduction in the scapular plane with strict core bracing.',
+    id: 'mid-chest',
+    name: 'MIDDLE CHEST (STERNAL HEAD)',
+    description: 'The main mass builder of the chest providing sheer pushing force, thick pectoral plates, and horizontal power.',
+    biomechanics: 'Pure horizontal adduction with full shoulder retraction and locked scapula.',
     recommendedExercises: [
-      { name: 'Standing Overhead Military Press', sets: '4 Sets × 6 Reps', target: 'Anterior Deltoid & Core Rigidity' },
-      { name: 'Lean-Away DB Lateral Raises', sets: '4 Sets × 15 Reps', target: 'Lateral Deltoid Width' },
-      { name: 'Face Pulls with Rope Cable', sets: '3 Sets × 20 Reps', target: 'Posterior Deltoid & External Rotators' },
-      { name: 'Seated Arnold Dumbbell Press', sets: '3 Sets × 10 Reps', target: 'Full Deltoid Complex' }
+      { name: 'Flat Barbell Bench Press', sets: '4 Sets × 6-8 Reps', target: 'Maximal Strength & Sternal Pecs' },
+      { name: 'Flat Dumbbell Press with Deep Stretch', sets: '4 Sets × 10 Reps', target: 'Outer Chest Fiber Stretch' },
+      { name: 'Seated Plate-Loaded Chest Press', sets: '3 Sets × 12 Reps', target: 'Continuous Tension Hypertrophy' },
+      { name: 'Pec Deck Machine Flyes', sets: '3 Sets × 15 Reps', target: 'Inner Chest Peak Contraction' }
     ]
   },
   {
-    id: 'arms',
-    name: 'ARMS (BICEPS & TRICEPS)',
-    description: 'Arm flexors and extensors essential for arm girth, lock-out strength, and pulling mechanics.',
-    biomechanics: 'Elbow flex/extension with isolated humerus positioning.',
+    id: 'lower-chest',
+    name: 'LOWER CHEST (ABDOMINAL HEAD)',
+    description: 'The lower pectoral border that carves a sharp, defined underline separating the chest from the upper abdomen.',
+    biomechanics: 'Downward horizontal adduction and shoulder extension with forward lean.',
     recommendedExercises: [
-      { name: 'EZ-Bar Incline Preacher Curl', sets: '4 Sets × 12 Reps', target: 'Short Head Biceps Isolation' },
-      { name: 'Heavy Incline Skullcrushers', sets: '4 Sets × 10 Reps', target: 'Triceps Long Head Power' },
-      { name: 'Cable Rope Pushdowns', sets: '3 Sets × 15 Reps', target: 'Triceps Lateral Head Peak' },
-      { name: 'Hammer Curls with Rope', sets: '3 Sets × 12 Reps', target: 'Brachialis & Brachioradialis' }
+      { name: 'Weighted Chest Dips (Forward Lean)', sets: '4 Sets × 8-10 Reps', target: 'Lower Pectoral Margin & Cut' },
+      { name: 'High-to-Low Cable Flyes', sets: '4 Sets × 12-15 Reps', target: 'Lower Sternal Peak Contraction' },
+      { name: 'Decline Dumbbell Bench Press', sets: '3 Sets × 10-12 Reps', target: 'Targeted Lower Head Hypertrophy' },
+      { name: 'Decline Hammer Strength Press', sets: '3 Sets × 10 Reps', target: 'Isolated Lower Chest Drive' }
     ]
   },
   {
-    id: 'back',
-    name: 'BACK (LATISSIMUS & TRAPEZIUS)',
-    description: 'The massive posterior chain upper engine responsible for V-taper aesthetics and pulling horsepower.',
-    biomechanics: 'Vertical pulling down and horizontal row retraction.',
+    id: 'glutes',
+    name: 'GLUTES (GLUTEUS MAXIMUS & MEDIUS)',
+    description: 'The largest and strongest muscle engine in the human body, vital for sprinting, explosive jumping, deadlifts, and hip stabilization.',
+    biomechanics: 'Hip extension, external rotation, and pelvic abduction under posterior chain load.',
     recommendedExercises: [
-      { name: 'Conventional Heavy Deadlifts', sets: '5 Sets × 5 Reps', target: 'Total Spinal Erector & Posterior Density' },
-      { name: 'Weighted Neutral Grip Pull-Ups', sets: '4 Sets × 8 Reps', target: 'Latissimus Dorsi Width' },
-      { name: 'Chest-Supported T-Bar Rows', sets: '4 Sets × 10 Reps', target: 'Rhomboid & Mid-Trap Thickness' },
-      { name: 'Single-Arm Dumbbell Rows', sets: '3 Sets × 12 Reps', target: 'Lower Lat Tie-In' }
+      { name: 'Heavy Barbell Hip Thrusts', sets: '4 Sets × 8-10 Reps', target: 'Gluteus Maximus Peak Lockout' },
+      { name: 'Deficit Bulgarian Split Squats', sets: '3 Sets × 10 Reps/leg', target: 'Deep Glute Stretch & Growth' },
+      { name: 'Standing Cable Glute Kickbacks', sets: '3 Sets × 15 Reps', target: 'Upper Glute Shelf Isolation' },
+      { name: 'Seated Machine Hip Abduction', sets: '4 Sets × 15-20 Reps', target: 'Gluteus Medius & Hip Stability' }
     ]
   },
   {
-    id: 'core',
-    name: 'CORE (ABS & OBLIQUES)',
-    description: 'The central stabilization hub connecting upper body power to lower body force generation.',
-    biomechanics: 'Anti-rotation, pelvic tilt control, and trunk flexion.',
+    id: 'quads',
+    name: 'QUADS (QUADRICEPS FEMORIS)',
+    description: 'The front four-headed thigh powerhouse: Rectus Femoris, Vastus Lateralis, Vastus Medialis (teardrop), and Vastus Intermedius.',
+    biomechanics: 'Knee extension under deep flexion with controlled knee-tracking over toes.',
     recommendedExercises: [
-      { name: 'Hanging Leg Raises with Hold', sets: '4 Sets × 15 Reps', target: 'Lower Rectus Abdominis' },
-      { name: 'Heavy Ab Cable Kneeling Crunches', sets: '4 Sets × 20 Reps', target: 'Upper Core Muscle Density' },
-      { name: 'Ab Wheel Rollouts', sets: '3 Sets × 12 Reps', target: 'Deep Transverse Abdominis' },
-      { name: 'Woodchopper Cable Rotations', sets: '3 Sets × 15 Reps', target: 'External & Internal Obliques' }
+      { name: 'Olympic High-Bar Squats', sets: '4 Sets × 6-8 Reps', target: 'Total Quad Sweep & Core Bracing' },
+      { name: '45° Heavy Incline Leg Press', sets: '4 Sets × 10-12 Reps', target: 'Vastus Lateralis Outer Sweep' },
+      { name: 'Hack Squats (Full Depth)', sets: '3 Sets × 10 Reps', target: 'Vastus Medialis (Teardrop)' },
+      { name: 'Leg Extensions with 2s Squeeze', sets: '3 Sets × 15 Reps', target: 'Rectus Femoris Peak Isolation' }
     ]
   },
   {
-    id: 'legs',
-    name: 'LEGS (QUADRICEPS & HAMSTRINGS)',
-    description: 'The foundation of human power: Quads, Hamstrings, Glutes, and Calves.',
-    biomechanics: 'Deep knee flexion and hip hinge power drive.',
+    id: 'hamstrings',
+    name: 'HAMSTRINGS (POSTERIOR CHAIN)',
+    description: 'The bi-articular muscle group that flexes the knee and extends the hip, preventing knee injuries and providing rear leg density.',
+    biomechanics: 'Hip hinge extension and knee flexion under eccentric control.',
     recommendedExercises: [
-      { name: 'Olympic High-Bar Back Squats', sets: '5 Sets × 5 Reps', target: 'Quadriceps Sweep & Glute Power' },
-      { name: 'Romanian Dumbbell Deadlifts', sets: '4 Sets × 10 Reps', target: 'Hamstring Stretch & Glute Tie-In' },
-      { name: '45° Heavy Leg Press', sets: '4 Sets × 12 Reps', target: 'Vastus Medialis (Teardrop)' },
-      { name: 'Seated Hamstring Curls', sets: '3 Sets × 15 Reps', target: 'Biceps Femoris Isolation' }
+      { name: 'Romanian Dumbbell/Barbell Deadlifts (RDL)', sets: '4 Sets × 8-10 Reps', target: 'Deep Hamstring Eccentric Stretch' },
+      { name: 'Seated Hamstring Leg Curls', sets: '4 Sets × 12 Reps', target: 'Biceps Femoris in Flexed Hip' },
+      { name: 'Lying Prone Leg Curls', sets: '3 Sets × 12-15 Reps', target: 'Semitendinosus Peak Contraction' },
+      { name: 'Nordic Hamstring Curls', sets: '3 Sets × 6-8 Reps', target: 'Eccentric Strength & Injury Shield' }
+    ]
+  },
+  {
+    id: 'calves',
+    name: 'CALVES (GASTROCNEMIUS & SOLEUS)',
+    description: 'Lower leg stabilizers responsible for plantar flexion, sprinting push-off, and diamond-shaped aesthetic lower leg definition.',
+    biomechanics: 'Plantar flexion with full ankle dorsiflexion stretch and pause at top.',
+    recommendedExercises: [
+      { name: 'Standing Calf Raises (Legs Straight)', sets: '4 Sets × 12-15 Reps', target: 'Gastrocnemius Diamond Heads' },
+      { name: 'Seated Calf Raises (Knees Bent 90°)', sets: '4 Sets × 15-20 Reps', target: 'Deep Soleus Muscle Layer' },
+      { name: 'Leg Press Toe Presses', sets: '3 Sets × 15 Reps', target: 'Heavy Plantar Extension' },
+      { name: 'Single-Leg Dumbbell Calf Raises', sets: '3 Sets × 15 Reps/leg', target: 'Unilateral Ankle Stability' }
+    ]
+  },
+  {
+    id: 'lats',
+    name: 'LATS (LATISSIMUS DORSI - V-TAPER)',
+    description: 'The widest muscle of the upper body creating the coveted V-taper physique, essential for pulling power and back width.',
+    biomechanics: 'Shoulder adduction and vertical pull driving elbows down to hip crest.',
+    recommendedExercises: [
+      { name: 'Weighted Neutral-Grip Pull-Ups', sets: '4 Sets × 6-8 Reps', target: 'Upper & Outer Lat Width' },
+      { name: 'Single-Arm Neutral Cable Lat Pulldowns', sets: '4 Sets × 10-12 Reps', target: 'Lower Lat Iliac Fiber Alignment' },
+      { name: 'Chest-Supported Dumbbell Rows', sets: '3 Sets × 10 Reps', target: 'Mid-to-Lower Lat Thickness' },
+      { name: 'Straight-Arm Rope Cable Pullovers', sets: '3 Sets × 15 Reps', target: 'Isolated Lat Stretch & Sweep' }
+    ]
+  },
+  {
+    id: 'traps',
+    name: 'TRAPS & UPPER BACK (RHOMBOIDS)',
+    description: 'The massive diamond-shaped muscle across the neck and mid-back giving thick 3D yoke density and shoulder girdle health.',
+    biomechanics: 'Scapular elevation, upward rotation, and middle retraction.',
+    recommendedExercises: [
+      { name: 'Heavy Barbell Shrugs (2s Top Hold)', sets: '4 Sets × 10-12 Reps', target: 'Upper Trapezius Yoke' },
+      { name: 'Chest-Supported T-Bar Rows', sets: '4 Sets × 10 Reps', target: 'Mid Traps & Rhomboid Thickness' },
+      { name: 'Kelso Shrugs on Incline Bench', sets: '3 Sets × 15 Reps', target: 'Lower & Mid Trapezius Control' },
+      { name: 'Face Pulls with High Rope Anchor', sets: '4 Sets × 15-20 Reps', target: 'Lower Traps & Postural Stability' }
+    ]
+  },
+  {
+    id: 'lower-back',
+    name: 'LOWER BACK (ERECTOR SPINAE)',
+    description: 'The spinal pillars running along the vertebral column providing anti-flexion core strength, posture, and heavy lift support.',
+    biomechanics: 'Isometric spinal stabilization and controlled hip extension.',
+    recommendedExercises: [
+      { name: 'Conventional Heavy Deadlifts', sets: '4 Sets × 5 Reps', target: 'Total Spinal Erector Density' },
+      { name: '45° Weighted Back Hyperextensions', sets: '3 Sets × 12 Reps', target: 'Lumbar Erector Spinae' },
+      { name: 'Good Mornings with Barbell', sets: '3 Sets × 8-10 Reps', target: 'Posterior Chain Hinge Bracing' },
+      { name: 'Heavy Suitcase Carries', sets: '3 Sets × 40 Meters', target: 'Anti-Lateral Flexion Stability' }
+    ]
+  },
+  {
+    id: 'front-delts',
+    name: 'FRONT DELTS (ANTERIOR DELTOID)',
+    description: 'The forward head of the shoulder muscle providing pushing drive and upper chest shoulder tie-in.',
+    biomechanics: 'Shoulder forward flexion with strict scapular retraction.',
+    recommendedExercises: [
+      { name: 'Standing Overhead Barbell Military Press', sets: '4 Sets × 6-8 Reps', target: 'Anterior Deltoid & Core Bracing' },
+      { name: 'Seated Dumbbell Shoulder Press', sets: '3 Sets × 8-10 Reps', target: 'Isolated Vertical Shoulder Power' },
+      { name: 'Incline Cable Front Raises', sets: '3 Sets × 12 Reps', target: 'Continuous Tension Front Head' },
+      { name: 'Arnold Dumbbell Press', sets: '3 Sets × 10 Reps', target: 'Rotational Deltoid Engagement' }
+    ]
+  },
+  {
+    id: 'side-delts',
+    name: 'SIDE DELTS (LATERAL DELTOID - 3D WIDTH)',
+    description: 'The middle deltoid head responsible for widening the upper body frame and creating capped, boulder shoulders.',
+    biomechanics: 'Shoulder abduction in the scapular plane with thumb-neutral tilt.',
+    recommendedExercises: [
+      { name: 'Behind-the-Back Cable Lateral Raises', sets: '4 Sets × 12-15 Reps', target: 'Constant Lateral Deltoid Tension' },
+      { name: 'Dumbbell Lateral Raises (Strict Form)', sets: '4 Sets × 15 Reps', target: 'Side Delt Width & Cap' },
+      { name: 'Upright Rows (Wide Cable Grip)', sets: '3 Sets × 12 Reps', target: 'Lateral Deltoid & Upper Trap' },
+      { name: 'Chest-Supported Incline Lateral Raises', sets: '3 Sets × 15 Reps', target: 'Zero-Momentum Strict Isolation' }
+    ]
+  },
+  {
+    id: 'rear-delts',
+    name: 'REAR DELTS (POSTERIOR DELTOID)',
+    description: 'The posterior shoulder head that balances the shoulder joint, prevents hunched posture, and gives a rounded 3D appearance.',
+    biomechanics: 'Horizontal abduction and external rotation of the humerus.',
+    recommendedExercises: [
+      { name: 'Reverse Pec Deck Flyes', sets: '4 Sets × 15 Reps', target: 'Posterior Deltoid Peak Contraction' },
+      { name: 'Cable Face Pulls with External Rotation', sets: '4 Sets × 15-20 Reps', target: 'Rear Delt & Rotator Cuff Health' },
+      { name: 'Bent-Over Incline Dumbbell Flyes', sets: '3 Sets × 12-15 Reps', target: 'Rear Delt Fiber Hypertrophy' },
+      { name: 'Cross-Cable Rear Delt Crossovers', sets: '3 Sets × 15 Reps', target: 'Deep Rear Shoulder Stretch' }
+    ]
+  },
+  {
+    id: 'biceps',
+    name: 'BICEPS (LONG & SHORT HEADS)',
+    description: 'The anterior arm flexors: Long head (outer peak) and Short head (inner thickness), plus the Brachialis underneath.',
+    biomechanics: 'Elbow flexion and forearm supination with stationary elbows.',
+    recommendedExercises: [
+      { name: 'Incline Dumbbell Biceps Curls', sets: '4 Sets × 10 Reps', target: 'Long Head Maximum Stretch' },
+      { name: 'EZ-Bar Preacher Curls', sets: '3 Sets × 10-12 Reps', target: 'Short Head Inner Thickness' },
+      { name: 'Cross-Body Hammer Curls', sets: '3 Sets × 12 Reps', target: 'Brachialis & Arm Girth' },
+      { name: 'Bayesian Cable Curls (Behind Back)', sets: '3 Sets × 15 Reps', target: 'Peak Contraction & Tension' }
+    ]
+  },
+  {
+    id: 'triceps',
+    name: 'TRICEPS (LONG, LATERAL & MEDIAL HEADS)',
+    description: 'Making up 60% of upper arm size, the three-headed triceps muscle extends the elbow and provides locking power.',
+    biomechanics: 'Elbow extension with humerus elevated for long head or fixed for lateral head.',
+    recommendedExercises: [
+      { name: 'Overhead Cable Rope Triceps Extensions', sets: '4 Sets × 12 Reps', target: 'Long Head Full Hypertrophic Stretch' },
+      { name: 'Incline Barbell Skull Crushers', sets: '4 Sets × 8-10 Reps', target: 'Long & Medial Head Power' },
+      { name: 'V-Bar Cable Pushdowns', sets: '3 Sets × 12-15 Reps', target: 'Lateral Head Outer Horseshoe' },
+      { name: 'Close-Grip Barbell Bench Press', sets: '3 Sets × 8 Reps', target: 'Massive Triceps Overload' }
+    ]
+  },
+  {
+    id: 'forearms',
+    name: 'FOREARMS & GRIP (FLEXORS & BRACHIORADIALIS)',
+    description: 'Essential for crushing grip strength, heavy deadlifts, pull-ups, and dense vascular lower arms.',
+    biomechanics: 'Wrist flexion, extension, and isometric grip holding.',
+    recommendedExercises: [
+      { name: 'Standing Barbell Behind-the-Back Wrist Curls', sets: '4 Sets × 15-20 Reps', target: 'Wrist Flexor Density' },
+      { name: 'Reverse EZ-Bar Bicep/Forearm Curls', sets: '3 Sets × 12 Reps', target: 'Brachioradialis Muscle Ridge' },
+      { name: 'Heavy Dumbbell Farmer\'s Carries', sets: '3 Sets × 45 Seconds', target: 'Crushing Isometric Grip' },
+      { name: 'Dead Hangs from Pull-Up Bar', sets: '3 Sets × Max Time', target: 'Tendon Strength & Decompression' }
+    ]
+  },
+  {
+    id: 'abs',
+    name: 'ABS (RECTUS ABDOMINIS - 6-PACK)',
+    description: 'The front vertical core muscle responsible for spine flexion and pulling the ribcage toward the pelvis for defined abdominal bricks.',
+    biomechanics: 'Spinal flexion through posterior pelvic tilt under resistance.',
+    recommendedExercises: [
+      { name: 'Hanging Leg Raises with Pelvic Tilt', sets: '4 Sets × 12-15 Reps', target: 'Lower Rectus Abdominis' },
+      { name: 'Kneeling Cable Rope Crunches', sets: '4 Sets × 15-20 Reps', target: 'Weighted Upper & Mid Abs' },
+      { name: 'Ab Wheel Rollouts from Knees', sets: '3 Sets × 10-12 Reps', target: 'Deep Core Bracing & Anti-Extension' },
+      { name: 'Decline Bench Weighted Crunches', sets: '3 Sets × 15 Reps', target: 'Upper Abdominal Hypertrophy' }
+    ]
+  },
+  {
+    id: 'obliques',
+    name: 'OBLIQUES & SERRATUS (ROTATIONAL CORE)',
+    description: 'The diagonal abdominal wall muscles that frame the six-pack, create the tapered waist, and power rotational torque.',
+    biomechanics: 'Torso rotation and lateral spine flexion against tension.',
+    recommendedExercises: [
+      { name: 'Standing Cable Woodchoppers (High-to-Low)', sets: '3 Sets × 15 Reps/side', target: 'External & Internal Oblique Torque' },
+      { name: 'Hanging Windshield Wipers', sets: '3 Sets × 10 Reps/side', target: 'Advanced Oblique & Serratus Control' },
+      { name: 'Weighted Side Planks with Hip Dips', sets: '3 Sets × 12 Reps/side', target: 'Lateral Core Endurance' },
+      { name: 'Russian Twists with Medicine Ball', sets: '3 Sets × 20 Reps', target: 'High-Rep Rotational Burn' }
     ]
   }
 ];
