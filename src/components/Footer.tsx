@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { Send, ArrowUp, Phone, Mail } from 'lucide-react';
 
-export const Footer: React.FC = () => {
+interface FooterProps {
+  onNavigate?: (view: 'home' | 'training', targetSectionId?: string) => void;
+}
+
+export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
 
@@ -29,16 +33,19 @@ export const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 lg:gap-12 pb-16 border-b border-white/5">
           {/* Col 1: Brand Info */}
           <div className="lg:col-span-2">
-            <a href="#hero" className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-950 p-[1px] shadow-lg shadow-red-600/20">
-                <div className="w-full h-full bg-[#09090D] rounded-[11px] flex items-center justify-center border border-white/10">
+            <div
+              onClick={() => onNavigate?.('home', 'hero')}
+              className="flex items-center gap-3 mb-4 cursor-pointer group w-fit"
+            >
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-950 p-[1px] shadow-lg shadow-red-600/20 group-hover:shadow-red-600/40 transition-all">
+                <div className="w-full h-full bg-[#09090D] rounded-[11px] flex items-center justify-center border border-white/10 group-hover:scale-95 transition-transform">
                   <span className="font-heading font-black text-xl text-gradient-red">S</span>
                 </div>
               </div>
-              <span className="font-heading font-black text-2xl tracking-wider text-white">
+              <span className="font-heading font-black text-2xl tracking-wider text-white group-hover:text-red-500 transition-colors">
                 SHREX <span className="text-gradient-red">CLUB</span>
               </span>
-            </a>
+            </div>
 
             <p className="text-xs text-gray-400 font-light max-w-sm mb-5 leading-relaxed">
               A high-performance athletic club engineering human potential through heavy steel, data telemetry, and world-class coaching.
@@ -131,28 +138,99 @@ export const Footer: React.FC = () => {
           {/* Col 2: Navigation Links */}
           <div>
             <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-gray-300 mb-4">
-              NAVIGATION
-            </h4>
-            <ul className="space-y-2.5 text-xs text-gray-400 font-medium">
-              <li><a href="#hero" className="hover:text-white transition-colors">Home</a></li>
-              <li><a href="#about" className="hover:text-white transition-colors">About The Club</a></li>
-              <li><a href="#programs" className="hover:text-white transition-colors">Training Programs</a></li>
-              <li><a href="#muscle-map" className="hover:text-white transition-colors">Interactive Muscle Map</a></li>
-              <li><a href="#trainers" className="hover:text-white transition-colors">Master Coaches</a></li>
-            </ul>
-          </div>
-
-          {/* Col 3: Programs & Facilities */}
-          <div>
-            <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-gray-300 mb-4">
               CLUB SANCTUARY
             </h4>
             <ul className="space-y-2.5 text-xs text-gray-400 font-medium">
-              <li><a href="#membership" className="hover:text-white transition-colors">Memberships</a></li>
-              <li><a href="#nutrition" className="hover:text-white transition-colors">Macro Calculator</a></li>
-              <li><a href="#schedule" className="hover:text-white transition-colors">Live Schedule</a></li>
-              <li><a href="#facilities" className="hover:text-white transition-colors">Facility Arenas</a></li>
-              <li><a href="#contact" className="hover:text-white transition-colors">Book Free Visit</a></li>
+              <li>
+                <button
+                  onClick={() => onNavigate?.('home', 'hero')}
+                  className="hover:text-white transition-colors text-left"
+                >
+                  Home / Overview
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate?.('home', 'about')}
+                  className="hover:text-white transition-colors text-left"
+                >
+                  About The Club
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate?.('home', 'membership')}
+                  className="hover:text-white transition-colors text-left"
+                >
+                  Membership Tiers
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate?.('home', 'facilities')}
+                  className="hover:text-white transition-colors text-left"
+                >
+                  Facility Arenas
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate?.('home', 'contact')}
+                  className="hover:text-white transition-colors text-left"
+                >
+                  Contact & Location
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          {/* Col 3: Dedicated Training Links */}
+          <div>
+            <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-red-400 mb-4 flex items-center gap-1.5">
+              <span>TRAINING SUITE</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            </h4>
+            <ul className="space-y-2.5 text-xs text-gray-400 font-medium">
+              <li>
+                <button
+                  onClick={() => onNavigate?.('training', 'programs')}
+                  className="hover:text-red-400 transition-colors text-left"
+                >
+                  Training Protocols
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate?.('training', 'muscle-map')}
+                  className="hover:text-red-400 transition-colors text-left"
+                >
+                  3D Muscle Anatomy Map
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate?.('training', 'schedule')}
+                  className="hover:text-red-400 transition-colors text-left"
+                >
+                  Live Class Schedule
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate?.('training', 'trainers')}
+                  className="hover:text-red-400 transition-colors text-left"
+                >
+                  Master Coaches
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate?.('home', 'nutrition')}
+                  className="hover:text-white transition-colors text-left"
+                >
+                  Macro & Calorie Calculator
+                </button>
+              </li>
             </ul>
           </div>
 

@@ -206,14 +206,14 @@ export const Hero: React.FC<HeroProps> = ({ onJoinClick, onExploreClick }) => {
             </button>
           </div>
 
-          {/* EXPLORE PROGRAMS CTA */}
+          {/* EXPLORE TRAINING HUB CTA */}
           <button
             onClick={onExploreClick}
-            data-cursor="EXPLORE"
-            className="w-full sm:w-auto px-8 py-4 rounded-full bg-white/[0.05] hover:bg-white/10 border border-white/20 backdrop-blur-md font-heading font-bold text-sm sm:text-base uppercase tracking-widest text-gray-200 hover:text-white transition-all duration-300 hover:border-white/40 active:scale-95 flex items-center justify-center gap-2"
+            data-cursor="TRAIN"
+            className="w-full sm:w-auto px-8 py-4 rounded-full bg-white/[0.05] hover:bg-red-600/20 border border-white/20 hover:border-red-500/50 backdrop-blur-md font-heading font-bold text-sm sm:text-base uppercase tracking-widest text-gray-200 hover:text-white transition-all duration-300 active:scale-95 flex items-center justify-center gap-2"
           >
-            <span>EXPLORE PROGRAMS</span>
-            <Shield className="w-4 h-4 text-gray-400" />
+            <span>EXPLORE TRAINING HUB</span>
+            <span className="text-red-500 font-mono text-sm">→</span>
           </button>
         </motion.div>
       </motion.div>
@@ -224,7 +224,16 @@ export const Hero: React.FC<HeroProps> = ({ onJoinClick, onExploreClick }) => {
         animate={{ opacity: 1 }}
         transition={{ delay: 1.8, duration: 1 }}
         className="absolute bottom-8 z-20 flex flex-col items-center gap-2 text-gray-500 cursor-pointer hover:text-white transition-colors"
-        onClick={onExploreClick}
+        onClick={() => {
+          const el = document.getElementById('about');
+          if (el) {
+            if ((window as any).lenis) {
+              (window as any).lenis.scrollTo(el, { offset: -40, duration: 1.2 });
+            } else {
+              el.scrollIntoView({ behavior: 'smooth' });
+            }
+          }
+        }}
       >
         <span className="text-[10px] font-mono tracking-[0.3em] uppercase">SCROLL TO DISCOVER</span>
         <motion.div
