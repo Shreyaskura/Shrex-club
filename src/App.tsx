@@ -4,7 +4,6 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { CustomCursor } from './components/CustomCursor';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
-import { LiveStatusBar } from './components/LiveStatusBar';
 import { ScrollStory } from './components/ScrollStory';
 import { ProgramsSection } from './components/ProgramsSection';
 import { MuscleMapSection } from './components/MuscleMapSection';
@@ -22,11 +21,11 @@ import { MapSection } from './components/MapSection';
 import { Footer } from './components/Footer';
 import { TrainingHero } from './components/TrainingHero';
 
-// Modals & Admin
 import { WorkoutModal } from './components/WorkoutModal';
 import { TrainerModal } from './components/TrainerModal';
 import { CheckoutModal } from './components/CheckoutModal';
 import { AdminDashboard } from './components/AdminDashboard';
+import { AuthModal, AuthUser, getStoredMembers } from './components/AuthModal';
 
 import { Program, MuscleInfo, Trainer, MembershipPlan, ClassSession, MEMBERSHIPS } from './data/gymData';
 
@@ -49,6 +48,96 @@ export default function App() {
   const [selectedTrainerModal, setSelectedTrainerModal] = useState<Trainer | null>(null);
   const [selectedCheckoutPlan, setSelectedCheckoutPlan] = useState<MembershipPlan | null>(null);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+
+  // Authentication State
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('shrex_auth_user');
+        if (!saved) return null;
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.email && parsed.role === 'user') {
+          const members = getStoredMembers();
+          const match = members.find((m) => m.email.toLowerCase() === parsed.email.toLowerCase());
+          if (match) {
+            const isExp = match.isExpired || (match.membershipExpiryTimestamp ? Date.now() > match.membershipExpiryTimestamp : false);
+            return {
+              ...parsed,
+              tier: match.tier,
+              joinedDate: match.joinedDate,
+              joinedTimestamp: match.joinedTimestamp,
+              membershipExpiryDate: match.membershipExpiryDate,
+              membershipExpiryTimestamp: match.membershipExpiryTimestamp,
+              isExpired: isExp,
+            };
+          }
+        }
+        return parsed;
+      } catch (err) {
+        console.error('Failed to parse saved auth user:', err);
+        return null;
+      }
+    }
+    return null;
+  });
+
+  // Sync currentUser with real-time membership renewals or expirations
+  useEffect(() => {
+    const handleSync = () => {
+      if (!currentUser || currentUser.role !== 'user') return;
+      const members = getStoredMembers();
+      const match = members.find((m) => m.email.toLowerCase() === currentUser.email.toLowerCase());
+      if (match) {
+        const isExp = match.isExpired || (match.membershipExpiryTimestamp ? Date.now() > match.membershipExpiryTimestamp : false);
+        const updated: AuthUser = {
+          ...currentUser,
+          tier: match.tier,
+          joinedDate: match.joinedDate,
+          joinedTimestamp: match.joinedTimestamp,
+          membershipExpiryDate: match.membershipExpiryDate,
+          membershipExpiryTimestamp: match.membershipExpiryTimestamp,
+          isExpired: isExp,
+        };
+        setCurrentUser(updated);
+        try {
+          localStorage.setItem('shrex_auth_user', JSON.stringify(updated));
+        } catch (e) {}
+      }
+    };
+    window.addEventListener('shrex_members_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('shrex_members_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, [currentUser?.email]);
+
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authInitialTab, setAuthInitialTab] = useState<'login' | 'signup' | 'admin'>('login');
+
+  const handleLogin = (user: AuthUser) => {
+    setCurrentUser(user);
+    try {
+      localStorage.setItem('shrex_auth_user', JSON.stringify(user));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    try {
+      localStorage.removeItem('shrex_auth_user');
+    } catch (e) {
+      console.error(e);
+    }
+    setIsAdminOpen(false);
+  };
+
+  const handleOpenAuth = (tab: 'login' | 'signup' | 'admin' = 'login') => {
+    setAuthInitialTab(tab);
+    setIsAuthOpen(true);
+  };
 
   // Initialize Lenis Smooth Inertia Scrolling
   useEffect(() => {
@@ -155,9 +244,18 @@ export default function App() {
           {/* Floating Glass Navigation */}
           <Navbar
             onJoinClick={handleJoinNowClick}
-            onOpenAdmin={() => setIsAdminOpen(true)}
+            onOpenAdmin={() => {
+              if (currentUser?.role === 'admin') {
+                setIsAdminOpen(true);
+              } else {
+                handleOpenAuth('admin');
+              }
+            }}
             activeView={activeView}
             onNavigate={navigateTo}
+            currentUser={currentUser}
+            onOpenAuth={handleOpenAuth}
+            onLogout={handleLogout}
           />
 
           {/* Main Website Flow */}
@@ -171,10 +269,7 @@ export default function App() {
                   onExploreClick={() => navigateTo('training')}
                 />
 
-                {/* 2. Live Gym Status Bar */}
-                <LiveStatusBar />
-
-                {/* 3. About The Club — Scroll Story */}
+                {/* 2. About The Club — Scroll Story */}
                 <ScrollStory />
 
                 {/* 4. Facilities & Arenas */}
@@ -280,10 +375,22 @@ export default function App() {
             onClose={() => setSelectedCheckoutPlan(null)}
           />
 
-          {/* Admin Command Center Dashboard */}
+          {/* User Authentication Modal (Login / Sign Up / Admin Gate) */}
+          <AuthModal
+            isOpen={isAuthOpen}
+            onClose={() => setIsAuthOpen(false)}
+            currentUser={currentUser}
+            onLogin={handleLogin}
+            onLogout={handleLogout}
+            initialTab={authInitialTab}
+          />
+
+          {/* Admin Command Center Dashboard (Guarded for Admins only) */}
           <AdminDashboard
             isOpen={isAdminOpen}
             onClose={() => setIsAdminOpen(false)}
+            currentUser={currentUser}
+            onOpenAuth={handleOpenAuth}
           />
         </>
       )}

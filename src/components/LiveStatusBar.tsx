@@ -2,20 +2,25 @@ import React, { useEffect, useState, useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
 import { Users, Calendar, Award, Activity } from 'lucide-react';
 
-export const LiveStatusBar: React.FC = () => {
+interface LiveStatusBarProps {
+  isDashboard?: boolean;
+}
+
+export const LiveStatusBar: React.FC<LiveStatusBarProps> = ({ isDashboard = false }) => {
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-50px' });
+  const shouldAnimate = isDashboard || isInView;
 
-  const [members, setMembers] = useState(0);
-  const [classes, setClasses] = useState(0);
-  const [trainers, setTrainers] = useState(0);
+  const [members, setMembers] = useState(isDashboard ? 128 : 0);
+  const [classes, setClasses] = useState(isDashboard ? 12 : 0);
+  const [trainers, setTrainers] = useState(isDashboard ? 8 : 0);
 
   useEffect(() => {
-    if (!isInView) return;
+    if (!shouldAnimate) return;
 
     // Counter animation logic
-    const duration = 1500;
-    const steps = 40;
+    const duration = 1200;
+    const steps = 30;
     const intervalTime = duration / steps;
 
     let step = 0;
@@ -35,12 +40,19 @@ export const LiveStatusBar: React.FC = () => {
     }, intervalTime);
 
     return () => clearInterval(timer);
-  }, [isInView]);
+  }, [shouldAnimate]);
 
   return (
-    <section ref={ref} className="relative z-30 w-full py-8 bg-[#08080C] border-y border-white/10">
-      <div className="w-[92%] max-w-7xl mx-auto">
-        <div className="glass-panel rounded-2xl p-6 sm:p-8 flex flex-col lg:flex-row items-center justify-between gap-8 shadow-2xl relative overflow-hidden border border-white/10">
+    <div
+      ref={ref}
+      className={
+        isDashboard
+          ? 'relative z-10 w-full'
+          : 'relative z-30 w-full py-8 bg-[#08080C] border-y border-white/10'
+      }
+    >
+      <div className={isDashboard ? 'w-full' : 'w-[92%] max-w-7xl mx-auto'}>
+        <div className="glass-panel rounded-2xl p-6 sm:p-8 flex flex-col lg:flex-row items-center justify-between gap-8 shadow-2xl relative overflow-hidden border border-white/10 bg-[#0C0C14]">
           {/* Subtle Ambient Red Light Accent */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -131,6 +143,6 @@ export const LiveStatusBar: React.FC = () => {
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 };

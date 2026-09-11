@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShieldCheck, CreditCard, Smartphone, CheckCircle2, Zap, Lock } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { MembershipPlan } from '../data/gymData';
+import { getStoredMembers, saveStoredMembers, MemberRecord } from './AuthModal';
 
 interface CheckoutModalProps {
   plan: MembershipPlan | null;
@@ -20,7 +21,52 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, onClose }) =
 
   const handleCheckout = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email) return;
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedName || !trimmedEmail) return;
+
+    // Save or update member in database
+    const members = getStoredMembers();
+    const existingIndex = members.findIndex((m) => m.email.toLowerCase() === trimmedEmail);
+    const now = Date.now();
+    const expiryTimestamp = now + 30 * 24 * 60 * 60 * 1000;
+    const expiryDate = new Date(expiryTimestamp).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+    const chosenTier: 'Essential' | 'Performance' | 'Elite VIP' = plan.name.includes('VIP')
+      ? 'Elite VIP'
+      : plan.name.includes('Performance')
+      ? 'Performance'
+      : 'Essential';
+
+    if (existingIndex >= 0) {
+      members[existingIndex].tier = chosenTier;
+      members[existingIndex].isExpired = false;
+      members[existingIndex].membershipExpiryTimestamp = expiryTimestamp;
+      members[existingIndex].membershipExpiryDate = expiryDate;
+    } else {
+      const newMember: MemberRecord = {
+        id: `MEM-${Math.floor(1000 + Math.random() * 9000)}`,
+        name: trimmedName,
+        email: trimmedEmail,
+        role: 'user',
+        tier: chosenTier,
+        fitnessGoal: 'Premium Athlete Training',
+        joinedDate:
+          new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
+          ' ' +
+          new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        joinedTimestamp: now,
+        membershipExpiryDate: expiryDate,
+        membershipExpiryTimestamp: expiryTimestamp,
+        isExpired: false,
+        lastLogin: 'Never (Checkout)',
+      };
+      members.push(newMember);
+    }
+    saveStoredMembers(members);
 
     setIsSuccess(true);
     confetti({
