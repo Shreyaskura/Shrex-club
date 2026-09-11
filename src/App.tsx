@@ -26,6 +26,7 @@ import { TrainerModal } from './components/TrainerModal';
 import { CheckoutModal } from './components/CheckoutModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { AuthModal, AuthUser, getStoredMembers } from './components/AuthModal';
+import { bootstrapMemberSync, sendHeartbeat, recordLoginOnServer } from './data/memberStore';
 
 import { Program, MuscleInfo, Trainer, MembershipPlan, ClassSession, MEMBERSHIPS } from './data/gymData';
 
@@ -112,6 +113,22 @@ export default function App() {
     };
   }, [currentUser?.email]);
 
+  // Synchronize members database with central server on startup
+  useEffect(() => {
+    bootstrapMemberSync().catch(() => {});
+  }, []);
+
+  // Dispatch live heartbeat and login verification for logged in member
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'user') return;
+    recordLoginOnServer(currentUser).catch(() => {});
+    sendHeartbeat(currentUser.email).catch(() => {});
+    const timer = setInterval(() => {
+      sendHeartbeat(currentUser.email).catch(() => {});
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [currentUser?.email]);
+
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authInitialTab, setAuthInitialTab] = useState<'login' | 'signup' | 'admin'>('login');
 
@@ -121,6 +138,10 @@ export default function App() {
       localStorage.setItem('shrex_auth_user', JSON.stringify(user));
     } catch (e) {
       console.error(e);
+    }
+    if (user.role === 'user') {
+      recordLoginOnServer(user).catch(() => {});
+      sendHeartbeat(user.email).catch(() => {});
     }
   };
 

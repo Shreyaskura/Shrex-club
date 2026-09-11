@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, Shield, Users, DollarSign, Activity, AlertTriangle,
+  X, Shield, Users, Activity, AlertTriangle,
   Search, Plus, Download, Cpu, Flame, Zap, BarChart3, CheckCircle2,
   Trash2, RefreshCw, Calendar, Radio, MapPin
 } from 'lucide-react';
@@ -16,6 +16,13 @@ import {
   expireMemberMembership,
   deleteStoredMember
 } from './AuthModal';
+import {
+  fetchServerMembers,
+  fetchLiveActivity,
+  playNewUserChime,
+  registerMemberOnServer,
+  ActivityEvent,
+} from '../data/memberStore';
 import { LiveStatusBar } from './LiveStatusBar';
 
 interface AdminDashboardProps {
@@ -31,9 +38,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   currentUser,
   onOpenAuth,
 }) => {
-  const [activeTab, setActiveTab] = useState<'metrics' | 'roster' | 'overview' | 'classes' | 'sensors'>('metrics');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'roster' | 'activity' | 'overview' | 'classes' | 'sensors'>('metrics');
   const [searchQuery, setSearchQuery] = useState('');
   const [members, setMembers] = useState<MemberRecord[]>(() => getStoredMembers());
+  const [activities, setActivities] = useState<ActivityEvent[]>([]);
+  const [onlineEmails, setOnlineEmails] = useState<string[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string>('Just now');
+  const [newAthleteAlert, setNewAthleteAlert] = useState<{
+    name: string;
+    email: string;
+    tier?: string;
+    type: 'USER_REGISTERED' | 'USER_ENTERED';
+    time: string;
+  } | null>(null);
+  const [newlyAddedId, setNewlyAddedId] = useState<string | null>(null);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
 
   // New Member Form state
@@ -42,18 +61,124 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newTier, setNewTier] = useState<'Essential' | 'Performance' | 'Elite VIP'>('Performance');
   const [newGoal, setNewGoal] = useState('Hypertrophy & Muscle Building');
 
-  // Keep members in sync with storage / cross-component updates
+  const prevMembersCountRef = useRef<number>(members.length);
+  const lastActivityTimestampRef = useRef<number>(0);
+  const hasInitializedRef = useRef<boolean>(false);
+
+  // Live polling and synchronization across devices
+  const doSync = useCallback(async (isManual: boolean = false) => {
+    if (isManual) setIsSyncing(true);
+    try {
+      const [freshMembers, liveActivity] = await Promise.all([
+        fetchServerMembers(),
+        fetchLiveActivity(lastActivityTimestampRef.current),
+      ]);
+
+      setMembers(freshMembers);
+      if (liveActivity && liveActivity.onlineEmails) {
+        setOnlineEmails(liveActivity.onlineEmails);
+      }
+      setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+
+      // Process new activities if any
+      if (liveActivity && Array.isArray(liveActivity.activities) && liveActivity.activities.length > 0) {
+        const sorted = [...liveActivity.activities].sort((a, b) => b.timestamp - a.timestamp);
+        const newest = sorted[0];
+        lastActivityTimestampRef.current = Math.max(
+          lastActivityTimestampRef.current,
+          ...liveActivity.activities.map((a) => a.timestamp)
+        );
+
+        setActivities((prev) => {
+          const existingIds = new Set(prev.map((a) => a.id));
+          const fresh = liveActivity.activities.filter((a) => !existingIds.has(a.id));
+          return [...fresh, ...prev].slice(0, 100);
+        });
+
+        // Trigger alert banner and chime if a user entered or registered
+        if (hasInitializedRef.current && (newest.type === 'USER_REGISTERED' || newest.type === 'USER_ENTERED')) {
+          playNewUserChime();
+          setNewAthleteAlert({
+            name: newest.member.name,
+            email: newest.member.email,
+            tier: newest.member.tier,
+            type: newest.type,
+            time: newest.formattedTime,
+          });
+          setNewlyAddedId(newest.member.id);
+        }
+      } else if (hasInitializedRef.current && freshMembers.length > prevMembersCountRef.current) {
+        const newest = freshMembers[0];
+        playNewUserChime();
+        setNewAthleteAlert({
+          name: newest.name,
+          email: newest.email,
+          tier: newest.tier,
+          type: 'USER_REGISTERED',
+          time: 'Just now',
+        });
+        setNewlyAddedId(newest.id);
+      }
+
+      hasInitializedRef.current = true;
+      prevMembersCountRef.current = freshMembers.length;
+    } catch (err) {
+      console.error('Admin sync error:', err);
+    } finally {
+      if (isManual) {
+        setTimeout(() => setIsSyncing(false), 400);
+      }
+    }
+  }, []);
+
+  // Poll every 2.5 seconds to detect live cross-device entries
   useEffect(() => {
-    const handleSync = () => {
+    doSync(false);
+    const interval = setInterval(() => {
+      doSync(false);
+    }, 2500);
+
+    const handleLocalSync = () => {
       setMembers(getStoredMembers());
     };
-    window.addEventListener('shrex_members_updated', handleSync);
-    window.addEventListener('storage', handleSync);
+    window.addEventListener('shrex_members_updated', handleLocalSync);
+    window.addEventListener('storage', handleLocalSync);
+
     return () => {
-      window.removeEventListener('shrex_members_updated', handleSync);
-      window.removeEventListener('storage', handleSync);
+      clearInterval(interval);
+      window.removeEventListener('shrex_members_updated', handleLocalSync);
+      window.removeEventListener('storage', handleLocalSync);
     };
-  }, []);
+  }, [doSync]);
+
+  // Authentic Online Calculation:
+  // User is online if their email is in onlineEmails, OR last login was within last 10 minutes (600,000ms), OR marked isOnline, OR currentUser matches
+  const isMemberOnline = (m: MemberRecord): boolean => {
+    const clean = m.email.toLowerCase().trim();
+    if (onlineEmails.map((e) => e.toLowerCase().trim()).includes(clean)) return true;
+    if (m.isOnline && (!m.lastLoginTimestamp || Date.now() - m.lastLoginTimestamp < 600000)) return true;
+    if (m.lastLoginTimestamp && Date.now() - m.lastLoginTimestamp < 600000) return true;
+    if (m.lastLogin === 'Just Now') return true;
+    if (currentUser && currentUser.email.toLowerCase().trim() === clean) return true;
+    return false;
+  };
+
+  const totalRegisteredUsers = members.length;
+  const activeMembershipsCount = members.filter(
+    (m) => !m.isExpired && (!m.membershipExpiryTimestamp || Date.now() <= m.membershipExpiryTimestamp)
+  ).length;
+  const expiredMembershipsCount = members.filter(
+    (m) => m.isExpired || (m.membershipExpiryTimestamp && Date.now() > m.membershipExpiryTimestamp)
+  ).length;
+  const currentlyLoggedInCount = members.filter(isMemberOnline).length;
+
+  // Filter members based on search
+  const filteredMembers = members.filter(
+    (m) =>
+      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.id.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (!isOpen) return null;
 
@@ -110,26 +235,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     );
   }
 
-  // Filter members based on search
-  const filteredMembers = members.filter(
-    (m) =>
-      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Dynamic Metrics Computed From Real Members
-  const totalRegisteredUsers = members.length;
-  const activeMembershipsCount = members.filter(
-    (m) => !m.isExpired && (!m.membershipExpiryTimestamp || Date.now() <= m.membershipExpiryTimestamp)
-  ).length;
-  const expiredMembershipsCount = members.filter(
-    (m) => m.isExpired || (m.membershipExpiryTimestamp && Date.now() > m.membershipExpiryTimestamp)
-  ).length;
-  const currentlyLoggedInCount = members.filter(
-    (m) => currentUser && currentUser.email.toLowerCase() === m.email.toLowerCase()
-  ).length;
-
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = newName.trim();
@@ -160,10 +265,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       membershipExpiryTimestamp: expiryTimestamp,
       isExpired: false,
       lastLogin: 'Never (Admin Registered)',
+      lastLoginTimestamp: now,
     };
 
     const updated = [newRec, ...members.filter((m) => m.email.toLowerCase() !== trimmedEmail)];
     saveStoredMembers(updated);
+    registerMemberOnServer(newRec).catch(() => {});
     setMembers(updated);
     setShowAddMemberModal(false);
     setNewName('');
@@ -254,6 +361,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <div className="flex items-center gap-2.5">
+              {/* Live Sync Telemetry Indicator */}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/10 text-xs font-mono">
+                <span className="relative flex h-2 w-2">
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isSyncing ? 'bg-amber-400' : 'bg-emerald-400'} opacity-75`} />
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${isSyncing ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                </span>
+                <span className="text-[11px] text-gray-300 hidden md:inline">
+                  {isSyncing ? 'Syncing...' : `LIVE SYNC (${lastSyncTime})`}
+                </span>
+                <button
+                  onClick={() => doSync(true)}
+                  className="text-gray-400 hover:text-white transition-colors ml-0.5 p-1 rounded hover:bg-white/5"
+                  title="Force refresh member data from central server"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-amber-400' : ''}`} />
+                </button>
+              </div>
+
               <button
                 onClick={handleExportCSV}
                 className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono text-gray-300 hover:text-white flex items-center gap-2 transition-all"
@@ -277,6 +402,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {[
               { id: 'metrics', label: 'LIVE CLUB METRICS', icon: Activity },
               { id: 'roster', label: `REGISTERED USERS & SESSIONS (${members.length})`, icon: Users },
+              { id: 'activity', label: `LIVE ENTRY STREAM (${activities.length})`, icon: Radio },
               { id: 'overview', label: 'EXECUTIVE OVERVIEW', icon: BarChart3 },
               { id: 'classes', label: 'TRAINERS ON FLOOR', icon: Flame },
               { id: 'sensors', label: 'FACILITY SENSORS', icon: Cpu },
@@ -299,6 +425,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               );
             })}
           </div>
+
+          {/* Real-Time Detection Notification Banner */}
+          <AnimatePresence>
+            {newAthleteAlert && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                className="mt-3 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-red-950/90 via-[#161622] to-emerald-950/90 border border-emerald-500/60 shadow-[0_0_30px_rgba(16,185,129,0.3)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0 shadow-lg shadow-emerald-500/20">
+                    <Zap className="w-5 h-5 animate-bounce" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono font-black text-emerald-400 uppercase tracking-widest bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/40 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                        {newAthleteAlert.type === 'USER_REGISTERED' ? 'NEW USER REGISTERED' : 'ATHLETE ENTERED / LOGGED IN'}
+                      </span>
+                      <span className="text-[10px] font-mono text-gray-400">
+                        {newAthleteAlert.time}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm font-heading font-black text-white mt-0.5">
+                      {newAthleteAlert.name} <span className="text-gray-400 font-mono text-xs font-normal">({newAthleteAlert.email})</span>
+                      {newAthleteAlert.tier && (
+                        <span className="ml-2 text-[10px] font-mono px-2 py-0.5 rounded-full bg-red-600/30 text-red-300 border border-red-500/40">
+                          {newAthleteAlert.tier} Tier
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button
+                    onClick={() => {
+                      setActiveTab('roster');
+                      setNewAthleteAlert(null);
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-[11px] font-bold uppercase tracking-wider transition-all shadow-md"
+                  >
+                    VIEW IN ROSTER
+                  </button>
+                  <button
+                    onClick={() => setNewAthleteAlert(null)}
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                    title="Dismiss notification"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Main Dashboard Body Viewport */}
           <div className="flex-1 overflow-y-auto pt-5 space-y-6 scrollbar-thin" data-lenis-prevent>
@@ -479,14 +661,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </thead>
                         <tbody className="divide-y divide-white/5 text-xs">
                           {filteredMembers.map((m) => {
-                            const isCurrentActive = currentUser && currentUser.email.toLowerCase() === m.email.toLowerCase();
+                            const isCurrentActive = isMemberOnline(m);
                             const isExp = m.isExpired || (m.membershipExpiryTimestamp ? Date.now() > m.membershipExpiryTimestamp : false);
+                            const isNewlyAdded = newlyAddedId === m.id;
 
                             return (
-                              <tr key={m.id} className="hover:bg-white/[0.04] transition-colors">
+                              <tr
+                                key={m.id}
+                                className={`transition-all ${
+                                  isNewlyAdded
+                                    ? 'bg-emerald-950/20 border-l-2 border-emerald-500'
+                                    : 'hover:bg-white/[0.04]'
+                                }`}
+                              >
                                 <td className="p-3.5 font-mono font-bold text-red-400">{m.id}</td>
                                 <td className="p-3.5">
-                                  <span className="font-heading font-extrabold text-white block">{m.name}</span>
+                                  <span className="font-heading font-extrabold text-white block flex items-center gap-2">
+                                    {m.name}
+                                    {isNewlyAdded && (
+                                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                                        NEW
+                                      </span>
+                                    )}
+                                  </span>
                                   <span className="text-[11px] font-mono text-gray-400 block">{m.email}</span>
                                   {m.fitnessGoal && (
                                     <span className="text-[10px] font-mono text-gray-500 block">Goal: {m.fitnessGoal}</span>
@@ -523,7 +720,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   ) : (
                                     <div className="flex items-center gap-1.5 text-gray-400 font-mono text-[11px]">
                                       <span className="h-2 w-2 rounded-full bg-gray-600" />
-                                      <span>Offline ({m.lastLogin || 'Registered'})</span>
+                                      <span>Offline ({m.lastLogin || 'Never'})</span>
                                     </div>
                                   )}
                                 </td>
@@ -580,6 +777,106 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB: LIVE ACTIVITY & ENTRY AUDIT STREAM */}
+            {activeTab === 'activity' && (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.02] border border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-red-600/20 text-red-500 border border-red-500/30">
+                      <Radio className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-widest block">
+                        CROSS-DEVICE TELEMETRY STREAM
+                      </span>
+                      <h3 className="text-base sm:text-lg font-heading font-black text-white">
+                        REAL-TIME USER ENTRIES & REGISTRATIONS
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-gray-400">
+                      Tracking all devices live
+                    </span>
+                    <button
+                      onClick={() => doSync(true)}
+                      className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-mono text-white border border-white/10 flex items-center gap-1.5 transition-colors"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-amber-400' : ''}`} />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+                </div>
+
+                {activities.length === 0 ? (
+                  <div className="p-12 text-center flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl bg-white/[0.01]">
+                    <Radio className="w-12 h-12 text-gray-600 mb-3 animate-pulse" />
+                    <h4 className="text-white font-heading font-black text-lg">LISTENING FOR ATHLETE ENTRIES</h4>
+                    <p className="text-xs font-mono text-gray-400 max-w-md mt-1 leading-relaxed">
+                      The telemetry stream is active and monitoring all connected laptops and mobile devices. When an athlete signs up, enters, or renews from any machine, their event will stream here instantly in real-time.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {activities.map((act) => {
+                      const isReg = act.type === 'USER_REGISTERED';
+                      const isRenew = act.type === 'MEMBERSHIP_RENEWED';
+                      return (
+                        <motion.div
+                          key={act.id}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="p-4 rounded-2xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-colors"
+                        >
+                          <div className="flex items-center gap-3.5">
+                            <div
+                              className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 border ${
+                                isReg
+                                  ? 'bg-blue-950/60 border-blue-500/40 text-blue-400'
+                                  : isRenew
+                                  ? 'bg-amber-950/60 border-amber-500/40 text-amber-400'
+                                  : 'bg-emerald-950/60 border-emerald-500/40 text-emerald-400'
+                              }`}
+                            >
+                              {isReg ? <Users className="w-5 h-5" /> : isRenew ? <RefreshCw className="w-5 h-5" /> : <Zap className="w-5 h-5" />}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                                    isReg
+                                      ? 'bg-blue-950/80 border-blue-500/40 text-blue-300'
+                                      : isRenew
+                                      ? 'bg-amber-950/80 border-amber-500/40 text-amber-300'
+                                      : 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300'
+                                  }`}
+                                >
+                                  {isReg ? 'New Account Created' : isRenew ? 'Membership Renewed' : 'Athlete Entered / Logged In'}
+                                </span>
+                                <span className="text-[10px] font-mono text-gray-500">
+                                  {act.formattedTime} • {act.date}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="font-heading font-extrabold text-sm text-white">{act.member.name}</span>
+                                <span className="text-xs font-mono text-gray-400">({act.member.email})</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-white/5 border border-white/10 text-gray-300">
+                              {act.member.tier} Tier
+                            </span>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

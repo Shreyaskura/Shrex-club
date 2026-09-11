@@ -12,14 +12,11 @@ import {
   CheckCircle2,
   ArrowRight,
   ArrowLeft,
-  Flame,
   KeyRound,
   LogOut,
-  Target,
   Calendar,
   Clock,
   AlertTriangle,
-  RefreshCw,
   Key
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -38,69 +35,25 @@ export interface AuthUser {
   isExpired?: boolean;
 }
 
-export interface MemberRecord {
-  id: string;
-  name: string;
-  email: string;
-  password?: string;
-  role: 'user';
-  tier: 'Essential' | 'Performance' | 'Elite VIP';
-  fitnessGoal?: string;
-  joinedDate: string;
-  joinedTimestamp: number;
-  membershipExpiryDate: string;
-  membershipExpiryTimestamp: number;
-  isExpired: boolean;
-  lastLogin?: string;
-}
+import {
+  MemberRecord,
+  getStoredMembers,
+  saveStoredMembers,
+  registerMemberOnServer,
+  recordLoginOnServer,
+  renewMemberOnServer,
+  expireMemberOnServer,
+  deleteMemberOnServer,
+  resetPasswordOnServer,
+  fetchServerMembers,
+  mergeMembers,
+} from '../data/memberStore';
 
-const FAKE_EMAILS = [
-  'rohan@mehta.com',
-  'ananya@roy.com',
-  'karan@malhotra.dev',
-  'sneha@reddy.org',
-  'aditya@verma.io',
-  'priya@sharma.com',
-  'member@shrex.com',
-  'vip@shrex.com',
-  'test@shrex.com',
-  'vikram@example.com',
-  'arjun@example.com'
-];
+export type { MemberRecord };
+export { getStoredMembers, saveStoredMembers };
 
-export const getStoredMembers = (): MemberRecord[] => {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem('shrex_members_db');
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    // Strict filter: genuine user records only, no fake mock accounts
-    return parsed.filter(
-      (m) =>
-        m &&
-        m.email &&
-        m.name &&
-        m.role === 'user' &&
-        !FAKE_EMAILS.includes(m.email.toLowerCase())
-    );
-  } catch (e) {
-    console.error(e);
-    return [];
-  }
-};
-
-export const saveStoredMembers = (members: MemberRecord[]) => {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem('shrex_members_db', JSON.stringify(members));
-    window.dispatchEvent(new Event('shrex_members_updated'));
-  } catch (e) {
-    console.error(e);
-  }
-};
-
-export const renewMemberMembership = (id: string, days: number = 30) => {
+export const renewMemberMembership = (id: string, days: number = 30): MemberRecord[] => {
+  renewMemberOnServer(id, days).catch(() => {});
   const members = getStoredMembers();
   const updated = members.map((m) => {
     if (m.id === id) {
@@ -127,7 +80,8 @@ export const renewMemberMembership = (id: string, days: number = 30) => {
   return updated;
 };
 
-export const expireMemberMembership = (id: string) => {
+export const expireMemberMembership = (id: string): MemberRecord[] => {
+  expireMemberOnServer(id).catch(() => {});
   const members = getStoredMembers();
   const updated = members.map((m) => {
     if (m.id === id) {
@@ -143,7 +97,8 @@ export const expireMemberMembership = (id: string) => {
   return updated;
 };
 
-export const deleteStoredMember = (id: string) => {
+export const deleteStoredMember = (id: string): MemberRecord[] => {
+  deleteMemberOnServer(id).catch(() => {});
   const members = getStoredMembers();
   const updated = members.filter((m) => m.id !== id);
   saveStoredMembers(updated);
@@ -206,6 +161,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setActiveTab(initialTab);
     setErrorMessage('');
     setSuccessMessage('');
+    if (isOpen) {
+      fetchServerMembers().catch(() => {});
+    }
   }, [initialTab, isOpen]);
 
   useEffect(() => {
@@ -315,6 +273,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     // Update password in real database
     members[memberIndex].password = newPassword;
     saveStoredMembers(members);
+    resetPasswordOnServer(resetEmail, newPassword).catch(() => {});
 
     setSuccessMessage('Password updated successfully! You can now log in with your new password.');
     confetti({ particleCount: 80, spread: 70, origin: { y: 0.5 } });
@@ -393,7 +352,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleMemberLogin = (e: React.FormEvent) => {
+  const handleMemberLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -428,9 +387,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    // Verify against registered accounts database
-    const members = getStoredMembers();
-    const existingUser = members.find((u) => u.email.trim().toLowerCase() === trimmedEmail);
+    // Verify against registered accounts database (local + server fallback)
+    let members = getStoredMembers();
+    let existingUser = members.find((u) => u.email.trim().toLowerCase() === trimmedEmail);
+
+    if (!existingUser) {
+      try {
+        const serverMembers = await fetchServerMembers();
+        existingUser = serverMembers.find((u) => u.email.trim().toLowerCase() === trimmedEmail);
+        if (existingUser) {
+          members = serverMembers;
+        }
+      } catch (err) {}
+    }
 
     if (!existingUser) {
       setErrorMessage('No account found with this email. Please sign up first.');
@@ -445,7 +414,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     // Update member last active timestamp
     existingUser.lastLogin = 'Just Now';
+    existingUser.lastLoginTimestamp = Date.now();
+    existingUser.isOnline = true;
     saveStoredMembers(members);
+    recordLoginOnServer(existingUser).catch(() => {});
 
     const now = Date.now();
     const fallbackExpiryTs = now + 30 * 24 * 60 * 60 * 1000;
@@ -477,7 +449,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }, 1000);
   };
 
-  const handleMemberSignup = (e: React.FormEvent) => {
+  const handleMemberSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -490,8 +462,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    // Check if account already exists
-    const members = getStoredMembers();
+    // Check if account already exists across local and server
+    let members = getStoredMembers();
+    try {
+      const serverMembers = await fetchServerMembers();
+      members = mergeMembers(members, serverMembers);
+    } catch (err) {}
+
     const existing = members.find((u) => u.email.trim().toLowerCase() === trimmedEmail);
     if (existing) {
       setErrorMessage('An account with this email already exists. Please log in.');
@@ -524,6 +501,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     // Save newly created real account into database
     saveStoredMembers([newMember, ...members.filter((m) => m.email.toLowerCase() !== trimmedEmail)]);
+    registerMemberOnServer(newMember).catch(() => {});
 
     const authUser: AuthUser = {
       id: newMember.id,

@@ -1,6 +1,393 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import nodemailer from 'nodemailer'
+import fs from 'node:fs'
+import path from 'node:path'
+
+// In-memory online heartbeat map: email -> last active timestamp (ms)
+const activeHeartbeats = new Map<string, number>()
+
+function getMembersFilePath(): string {
+  const dir = path.resolve(process.cwd(), 'data')
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+  const file = path.join(dir, 'members_db.json')
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, '[]', 'utf-8')
+  }
+  return file
+}
+
+function getActivityFilePath(): string {
+  const dir = path.resolve(process.cwd(), 'data')
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+  const file = path.join(dir, 'activity_log.json')
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, '[]', 'utf-8')
+  }
+  return file
+}
+
+function readMembers(): any[] {
+  try {
+    const filePath = getMembersFilePath()
+    const content = fs.readFileSync(filePath, 'utf-8')
+    return JSON.parse(content || '[]')
+  } catch (err) {
+    console.error('Error reading members_db.json:', err)
+    return []
+  }
+}
+
+const CLOUD_MEMBERS_URL = 'https://api.restful-api.dev/objects/ff808181a067127101a08f60221b72d1'
+const CLOUD_ACTIVITY_URL = 'https://api.restful-api.dev/objects/ff808181a067127101a08f60ec3a72d3'
+
+function writeMembers(members: any[]): void {
+  try {
+    const filePath = getMembersFilePath()
+    fs.writeFileSync(filePath, JSON.stringify(members, null, 2), 'utf-8')
+    fetch(CLOUD_MEMBERS_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Shrex Club Members DB', data: { members } }),
+    }).catch(() => {})
+  } catch (err) {
+    console.error('Error writing members_db.json:', err)
+  }
+}
+
+function readActivities(): any[] {
+  try {
+    const filePath = getActivityFilePath()
+    const content = fs.readFileSync(filePath, 'utf-8')
+    return JSON.parse(content || '[]')
+  } catch (err) {
+    console.error('Error reading activity_log.json:', err)
+    return []
+  }
+}
+
+function recordActivity(type: 'USER_REGISTERED' | 'USER_ENTERED' | 'MEMBERSHIP_RENEWED', member: any): any {
+  try {
+    const activities = readActivities()
+    const now = Date.now()
+    const event = {
+      id: `ACT-${now}-${Math.floor(100 + Math.random() * 900)}`,
+      type,
+      member: {
+        id: member.id,
+        name: member.name,
+        email: member.email,
+        tier: member.tier || 'Essential',
+      },
+      timestamp: now,
+      formattedTime: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      date: new Date(now).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    }
+
+    // Keep the most recent 100 activities
+    const updated = [event, ...activities].slice(0, 100)
+    const filePath = getActivityFilePath()
+    fs.writeFileSync(filePath, JSON.stringify(updated, null, 2), 'utf-8')
+
+    // Also update heartbeat
+    if (member.email) {
+      activeHeartbeats.set(member.email.toLowerCase(), now)
+    }
+
+    // Mirror to cloud activity datastore
+    fetch(CLOUD_ACTIVITY_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Shrex Club Activity DB',
+        data: {
+          activities: updated,
+          heartbeats: Object.fromEntries(activeHeartbeats),
+        },
+      }),
+    }).catch(() => {})
+
+    console.log(`\n🔔 [SHREX LIVE TELEMETRY] ${type}: ${member.name} (${member.email}) at ${event.formattedTime}`)
+    return event
+  } catch (err) {
+    console.error('Failed to log activity:', err)
+    return null
+  }
+}
+
+function memberPersistencePlugin(): Plugin {
+  return {
+    name: 'shrex-member-persistence-server',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const urlPath = (req.url || '').split('?')[0]
+
+        // Set CORS headers for all /api requests
+        if (urlPath.startsWith('/api/')) {
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+
+          if (req.method === 'OPTIONS') {
+            res.statusCode = 200
+            res.end()
+            return
+          }
+        }
+
+        // 1. GET /api/members
+        if (urlPath === '/api/members' && req.method === 'GET') {
+          const members = readMembers()
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ success: true, members }))
+          return
+        }
+
+        // 2. POST /api/members (Register, Login, Renew, Expire, Password Reset, Upsert)
+        if (urlPath === '/api/members' && req.method === 'POST') {
+          let body = ''
+          req.on('data', (chunk) => {
+            body += chunk
+          })
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}')
+              const { action, member, email, password, id, days } = data
+              let members = readMembers()
+              let newEvent = null
+
+              if (action === 'register' && member) {
+                const cleanEmail = member.email.trim().toLowerCase()
+                const existingIdx = members.findIndex((m: any) => m.email.toLowerCase() === cleanEmail)
+                const newRecord = {
+                  ...member,
+                  email: cleanEmail,
+                  isOnline: true,
+                  lastLogin: 'Just Now',
+                  lastLoginTimestamp: Date.now(),
+                }
+                if (existingIdx >= 0) {
+                  members[existingIdx] = { ...members[existingIdx], ...newRecord }
+                } else {
+                  members = [newRecord, ...members]
+                }
+                writeMembers(members)
+                newEvent = recordActivity('USER_REGISTERED', newRecord)
+              } else if (action === 'login' && email) {
+                const cleanEmail = email.trim().toLowerCase()
+                activeHeartbeats.set(cleanEmail, Date.now())
+                const existingIdx = members.findIndex((m: any) => m.email.toLowerCase() === cleanEmail)
+                let userRec: any = null
+
+                if (existingIdx >= 0) {
+                  members[existingIdx].lastLogin = 'Just Now'
+                  members[existingIdx].lastLoginTimestamp = Date.now()
+                  members[existingIdx].isOnline = true
+                  if (member && member.name) members[existingIdx].name = member.name
+                  if (member && member.tier) members[existingIdx].tier = member.tier
+                  userRec = members[existingIdx]
+                } else {
+                  userRec = {
+                    ...(member || {}),
+                    id: member?.id || `MEM-${Math.floor(1000 + Math.random() * 9000)}`,
+                    name: member?.name || cleanEmail.split('@')[0],
+                    email: cleanEmail,
+                    role: 'user',
+                    tier: member?.tier || 'Essential',
+                    joinedDate:
+                      member?.joinedDate ||
+                      new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                    joinedTimestamp: member?.joinedTimestamp || Date.now(),
+                    membershipExpiryDate: member?.membershipExpiryDate || 'In 30 Days',
+                    membershipExpiryTimestamp: member?.membershipExpiryTimestamp || Date.now() + 30 * 24 * 60 * 60 * 1000,
+                    isExpired: false,
+                    isOnline: true,
+                    lastLogin: 'Just Now',
+                    lastLoginTimestamp: Date.now(),
+                  }
+                  members = [userRec, ...members]
+                }
+                writeMembers(members)
+                newEvent = recordActivity('USER_ENTERED', userRec)
+              } else if (action === 'renew' && id) {
+                const renewDays = days || 30
+                const now = Date.now()
+                members = members.map((m: any) => {
+                  if (m.id === id) {
+                    const base = m.membershipExpiryTimestamp && m.membershipExpiryTimestamp > now ? m.membershipExpiryTimestamp : now
+                    const newTs = base + renewDays * 24 * 60 * 60 * 1000
+                    const newDate = new Date(newTs).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                    const updated = { ...m, isExpired: false, membershipExpiryTimestamp: newTs, membershipExpiryDate: newDate }
+                    newEvent = recordActivity('MEMBERSHIP_RENEWED', updated)
+                    return updated
+                  }
+                  return m
+                })
+                writeMembers(members)
+              } else if (action === 'expire' && id) {
+                members = members.map((m: any) => {
+                  if (m.id === id) {
+                    return {
+                      ...m,
+                      isExpired: true,
+                      membershipExpiryDate: 'Expired (' + new Date().toLocaleDateString('en-GB') + ')',
+                    }
+                  }
+                  return m
+                })
+                writeMembers(members)
+              } else if (action === 'reset-password' && email && password) {
+                const cleanEmail = email.trim().toLowerCase()
+                members = members.map((m: any) => {
+                  if (m.email.toLowerCase() === cleanEmail) {
+                    return { ...m, password }
+                  }
+                  return m
+                })
+                writeMembers(members)
+              } else if (member) {
+                const cleanEmail = member.email.trim().toLowerCase()
+                const existingIdx = members.findIndex((m: any) => m.email.toLowerCase() === cleanEmail)
+                if (existingIdx >= 0) {
+                  members[existingIdx] = { ...members[existingIdx], ...member }
+                } else {
+                  members = [member, ...members]
+                }
+                writeMembers(members)
+              }
+
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ success: true, members, newEvent }))
+            } catch (err: any) {
+              console.error('POST /api/members error:', err)
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: 'Failed to update members database', details: err?.message }))
+            }
+          })
+          return
+        }
+
+        // 3. PUT /api/members (Bulk overwrite / clean sync)
+        if (urlPath === '/api/members' && req.method === 'PUT') {
+          let body = ''
+          req.on('data', (chunk) => {
+            body += chunk
+          })
+          req.on('end', () => {
+            try {
+              const { members } = JSON.parse(body || '{}')
+              if (Array.isArray(members)) {
+                writeMembers(members)
+              }
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ success: true, members: readMembers() }))
+            } catch (err: any) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: 'Failed to bulk update members' }))
+            }
+          })
+          return
+        }
+
+        // 4. DELETE /api/members
+        if (urlPath === '/api/members' && req.method === 'DELETE') {
+          const parsedUrl = new URL(req.url || '/', 'http://localhost')
+          const queryId = parsedUrl.searchParams.get('id')
+
+          let body = ''
+          req.on('data', (chunk) => {
+            body += chunk
+          })
+          req.on('end', () => {
+            try {
+              let idToDelete = queryId
+              if (!idToDelete && body) {
+                const parsed = JSON.parse(body)
+                idToDelete = parsed.id
+              }
+              if (idToDelete) {
+                let members = readMembers()
+                members = members.filter((m: any) => m.id !== idToDelete)
+                writeMembers(members)
+              }
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ success: true, members: readMembers() }))
+            } catch (err: any) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: 'Failed to delete member' }))
+            }
+          })
+          return
+        }
+
+        // 5. GET /api/activity (Real-Time Activity Stream + Online User List)
+        if (urlPath === '/api/activity' && req.method === 'GET') {
+          const parsedUrl = new URL(req.url || '/', 'http://localhost')
+          const since = Number(parsedUrl.searchParams.get('since') || 0)
+
+          const allActivities = readActivities()
+          const filtered = since > 0 ? allActivities.filter((a) => a.timestamp > since) : allActivities
+
+          // Check online users active in last 3 minutes (180,000ms)
+          const now = Date.now()
+          const onlineEmails: string[] = []
+          for (const [email, lastActive] of activeHeartbeats.entries()) {
+            if (now - lastActive <= 180000) {
+              onlineEmails.push(email)
+            }
+          }
+
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({
+            success: true,
+            activities: filtered,
+            onlineEmails,
+            serverTime: now,
+          }))
+          return
+        }
+
+        // 6. POST /api/activity/heartbeat
+        if (urlPath === '/api/activity/heartbeat' && req.method === 'POST') {
+          let body = ''
+          req.on('data', (chunk) => {
+            body += chunk
+          })
+          req.on('end', () => {
+            try {
+              const { email } = JSON.parse(body || '{}')
+              if (email) {
+                activeHeartbeats.set(email.trim().toLowerCase(), Date.now())
+              }
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ success: true }))
+            } catch (err) {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: 'Invalid heartbeat payload' }))
+            }
+          })
+          return
+        }
+
+        next()
+      })
+    },
+  }
+}
 
 function emailOtpPlugin(env: Record<string, string>): Plugin {
   return {
@@ -157,6 +544,12 @@ function emailOtpPlugin(env: Record<string, string>): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
-    plugins: [react(), emailOtpPlugin(env)],
+    server: {
+      host: true,
+      port: 5173,
+      allowedHosts: true,
+    },
+    plugins: [react(), memberPersistencePlugin(), emailOtpPlugin(env)],
   }
 })
+

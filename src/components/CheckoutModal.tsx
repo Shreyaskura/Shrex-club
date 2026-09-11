@@ -4,6 +4,7 @@ import { X, ShieldCheck, CreditCard, Smartphone, CheckCircle2, Zap, Lock } from 
 import confetti from 'canvas-confetti';
 import { MembershipPlan } from '../data/gymData';
 import { getStoredMembers, saveStoredMembers, MemberRecord } from './AuthModal';
+import { registerMemberOnServer } from '../data/memberStore';
 
 interface CheckoutModalProps {
   plan: MembershipPlan | null;
@@ -65,6 +66,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ plan, onClose }) =
         lastLogin: 'Never (Checkout)',
       };
       members.push(newMember);
+      registerMemberOnServer(newMember).catch(() => {});
     }
     saveStoredMembers(members);
 
