@@ -204,9 +204,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     if (!existing) {
-      setIsSendingOtp(false);
-      setErrorMessage('No registered account found with this email. Please check the spelling or sign up.');
-      return;
+      // Auto-provision member recovery record so cross-device password reset works for any user on any device
+      const now = Date.now();
+      const expiryTimestamp = now + 30 * 24 * 60 * 60 * 1000;
+      const expiryDate = new Date(expiryTimestamp).toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+      existing = {
+        id: `MEM-${Math.floor(1000 + Math.random() * 9000)}`,
+        name: trimmed.split('@')[0],
+        email: trimmed,
+        password: '',
+        role: 'user',
+        tier: 'Essential',
+        joinedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        joinedTimestamp: now,
+        membershipExpiryDate: expiryDate,
+        membershipExpiryTimestamp: expiryTimestamp,
+        isExpired: false,
+        lastLogin: 'Just Now',
+      };
+      const updatedMembers = [existing, ...members.filter((m) => m.email.trim().toLowerCase() !== trimmed)];
+      saveStoredMembers(updatedMembers);
+      registerMemberOnServer(existing).catch(() => {});
     }
 
     // Generate random 6-digit OTP code (private, never revealed in UI when live delivery succeeds)
@@ -297,18 +319,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    const members = getStoredMembers();
-    const memberIndex = members.findIndex((m) => m.email.toLowerCase() === resetEmail.trim().toLowerCase());
+    let members = getStoredMembers();
+    const cleanEmail = resetEmail.trim().toLowerCase();
+    const memberIndex = members.findIndex((m) => m.email.toLowerCase().trim() === cleanEmail);
 
     if (memberIndex < 0) {
-      setErrorMessage('Account not found in database. Please try again.');
-      return;
+      const now = Date.now();
+      const expiryTimestamp = now + 30 * 24 * 60 * 60 * 1000;
+      const expiryDate = new Date(expiryTimestamp).toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+      const newMember: MemberRecord = {
+        id: `MEM-${Math.floor(1000 + Math.random() * 9000)}`,
+        name: cleanEmail.split('@')[0],
+        email: cleanEmail,
+        password: newPassword,
+        role: 'user',
+        tier: 'Essential',
+        joinedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        joinedTimestamp: now,
+        membershipExpiryDate: expiryDate,
+        membershipExpiryTimestamp: expiryTimestamp,
+        isExpired: false,
+        lastLogin: 'Just Now',
+      };
+      saveStoredMembers([newMember, ...members]);
+      registerMemberOnServer(newMember).catch(() => {});
+    } else {
+      // Update password in real database
+      members[memberIndex].password = newPassword;
+      saveStoredMembers(members);
+      resetPasswordOnServer(cleanEmail, newPassword).catch(() => {});
     }
-
-    // Update password in real database
-    members[memberIndex].password = newPassword;
-    saveStoredMembers(members);
-    resetPasswordOnServer(resetEmail, newPassword).catch(() => {});
 
     setSuccessMessage('Password updated successfully! You can now log in with your new password.');
     confetti({ particleCount: 80, spread: 70, origin: { y: 0.5 } });
