@@ -412,15 +412,76 @@ function emailOtpPlugin(env: Record<string, string>): Plugin {
               console.log(`\n📧 [SHREX OTP DISPATCH] Sending OTP to: ${email}`)
               console.log(`🔑 [DEV CONSOLE OTP CODE]: ${otp}\n`)
 
+              const brevoApiKey = env.BREVO_API_KEY || process.env.BREVO_API_KEY
+              const brevoSender = env.BREVO_SENDER || process.env.BREVO_SENDER || 'shreyaskura@gmail.com'
               const smtpUser = env.SMTP_USER || process.env.SMTP_USER
               const smtpPass = env.SMTP_PASS || process.env.SMTP_PASS
+              const smtpHost = env.SMTP_HOST || process.env.SMTP_HOST
+              const smtpPort = Number(env.SMTP_PORT || process.env.SMTP_PORT || 587)
               const resendApiKey = env.RESEND_API_KEY || process.env.RESEND_API_KEY
 
               let delivered = false
               let serviceUsed = 'none'
+              let isSandboxRestricted = false
+              let resendErrorText = ''
 
-              // 1. Try Resend if configured
-              if (resendApiKey) {
+              const emailHtml = `
+                <div style="background-color: #0A0A0F; color: #ffffff; padding: 40px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; border-radius: 16px; border: 1px solid #222;">
+                  <div style="text-align: center; margin-bottom: 24px;">
+                    <span style="font-size: 24px; font-weight: 900; color: #ef4444; letter-spacing: 2px;">SHREX CLUB</span>
+                    <p style="color: #71717a; font-size: 11px; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Luxury Fitness & Athletic Performance</p>
+                  </div>
+                  <div style="background: #14141d; padding: 24px; border-radius: 12px; border: 1px solid #2a2a35; text-align: center;">
+                    <h2 style="font-size: 18px; color: #ffffff; margin-bottom: 12px;">Password Reset Verification</h2>
+                    <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5; margin-bottom: 20px;">
+                      We received a request to reset your password for your SHREX CLUB account. Use the one-time verification code below:
+                    </p>
+                    <div style="background: #000000; border: 1px solid #10b981; border-radius: 8px; padding: 14px 20px; display: inline-block; margin-bottom: 20px;">
+                      <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #34d399; font-family: monospace;">${otp}</span>
+                    </div>
+                    <p style="color: #71717a; font-size: 11px;">This verification code is valid for 10 minutes. If you did not request this, please ignore this email.</p>
+                  </div>
+                  <div style="text-align: center; margin-top: 24px; color: #52525b; font-size: 11px;">
+                    © 2026 SHREX CLUB. All rights reserved.
+                  </div>
+                </div>
+              `
+
+              // 1. Try Brevo API if configured (Free 300 emails/day, no Google 2-Step needed)
+              if (brevoApiKey) {
+                try {
+                  const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+                    method: 'POST',
+                    headers: {
+                      'api-key': brevoApiKey,
+                      'Content-Type': 'application/json',
+                      Accept: 'application/json',
+                    },
+                    body: JSON.stringify({
+                      sender: {
+                        name: 'SHREX CLUB Security',
+                        email: brevoSender,
+                      },
+                      to: [{ email }],
+                      subject: `${otp} is your SHREX CLUB Security Code`,
+                      htmlContent: emailHtml,
+                    }),
+                  })
+                  if (brevoRes.ok) {
+                    delivered = true
+                    serviceUsed = 'Brevo'
+                    console.log(`✅ [BREVO] Real email successfully sent to ${email}`)
+                  } else {
+                    const bErr = await brevoRes.text()
+                    console.error(`❌ [BREVO ERROR]:`, bErr)
+                  }
+                } catch (err: any) {
+                  console.error('❌ [BREVO EXCEPTION]:', err?.message)
+                }
+              }
+
+              // 2. Try Resend if not delivered
+              if (!delivered && resendApiKey) {
                 try {
                   const resendRes = await fetch('https://api.resend.com/emails', {
                     method: 'POST',
@@ -432,27 +493,7 @@ function emailOtpPlugin(env: Record<string, string>): Plugin {
                       from: env.EMAIL_FROM || 'SHREX CLUB <onboarding@resend.dev>',
                       to: email,
                       subject: `${otp} is your SHREX CLUB Security Code`,
-                      html: `
-                        <div style="background-color: #0A0A0F; color: #ffffff; padding: 40px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; border-radius: 16px; border: 1px solid #222;">
-                          <div style="text-align: center; margin-bottom: 24px;">
-                            <span style="font-size: 24px; font-weight: 900; color: #ef4444; letter-spacing: 2px;">SHREX CLUB</span>
-                            <p style="color: #71717a; font-size: 11px; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Luxury Fitness & Athletic Performance</p>
-                          </div>
-                          <div style="background: #14141d; padding: 24px; border-radius: 12px; border: 1px solid #2a2a35; text-align: center;">
-                            <h2 style="font-size: 18px; color: #ffffff; margin-bottom: 12px;">Password Reset Verification</h2>
-                            <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5; margin-bottom: 20px;">
-                              We received a request to reset your password for your SHREX CLUB account. Use the one-time verification code below:
-                            </p>
-                            <div style="background: #000000; border: 1px solid #10b981; border-radius: 8px; padding: 14px 20px; display: inline-block; margin-bottom: 20px;">
-                              <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #34d399; font-family: monospace;">${otp}</span>
-                            </div>
-                            <p style="color: #71717a; font-size: 11px;">This verification code is valid for 10 minutes. If you did not request this, please ignore this email.</p>
-                          </div>
-                          <div style="text-align: center; margin-top: 24px; color: #52525b; font-size: 11px;">
-                            © 2026 SHREX CLUB. All rights reserved.
-                          </div>
-                        </div>
-                      `,
+                      html: emailHtml,
                     }),
                   })
                   if (resendRes.ok) {
@@ -460,56 +501,52 @@ function emailOtpPlugin(env: Record<string, string>): Plugin {
                     serviceUsed = 'Resend'
                     console.log(`✅ [RESEND] Real email successfully sent to ${email}`)
                   } else {
-                    const errData = await resendRes.text()
-                    console.error(`❌ [RESEND ERROR]:`, errData)
+                    resendErrorText = await resendRes.text()
+                    console.error(`❌ [RESEND ERROR]:`, resendErrorText)
+                    if (resendErrorText.includes('only send testing emails to your own email address') || resendRes.status === 403) {
+                      isSandboxRestricted = true
+                      console.warn(`⚠️ [RESEND SANDBOX RESTRICTION] Recipient (${email}) blocked by Resend sandbox. Resend free tier only delivers to account owner until a custom domain or Gmail SMTP is configured.`)
+                    }
                   }
-                } catch (err) {
-                  console.error('❌ [RESEND EXCEPTION]:', err)
+                } catch (err: any) {
+                  console.error('❌ [RESEND EXCEPTION]:', err?.message)
+                  resendErrorText = err?.message || 'Connection failed'
                 }
               }
 
-              // 2. Try Nodemailer (Gmail / SMTP) if configured
+              // 3. Try Nodemailer (Brevo SMTP or Gmail SMTP) if configured
               if (!delivered && smtpUser && smtpPass) {
                 try {
-                  const transporter = nodemailer.createTransport({
-                    service: 'gmail',
-                    auth: {
-                      user: smtpUser,
-                      pass: smtpPass,
-                    },
-                  })
+                  const transportConfig: any = smtpHost
+                    ? {
+                        host: smtpHost,
+                        port: smtpPort,
+                        auth: {
+                          user: smtpUser,
+                          pass: smtpPass,
+                        },
+                      }
+                    : {
+                        service: 'gmail',
+                        auth: {
+                          user: smtpUser,
+                          pass: smtpPass,
+                        },
+                      }
+
+                  const transporter = nodemailer.createTransport(transportConfig)
 
                   await transporter.sendMail({
                     from: `"SHREX CLUB Security" <${smtpUser}>`,
                     to: email,
                     subject: `${otp} is your SHREX CLUB Verification Code`,
-                    html: `
-                      <div style="background-color: #0A0A0F; color: #ffffff; padding: 40px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; border-radius: 16px; border: 1px solid #222;">
-                        <div style="text-align: center; margin-bottom: 24px;">
-                          <span style="font-size: 24px; font-weight: 900; color: #ef4444; letter-spacing: 2px;">SHREX CLUB</span>
-                          <p style="color: #71717a; font-size: 11px; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Luxury Fitness & Athletic Performance</p>
-                        </div>
-                        <div style="background: #14141d; padding: 24px; border-radius: 12px; border: 1px solid #2a2a35; text-align: center;">
-                          <h2 style="font-size: 18px; color: #ffffff; margin-bottom: 12px;">Password Reset Verification</h2>
-                          <p style="color: #a1a1aa; font-size: 13px; line-height: 1.5; margin-bottom: 20px;">
-                            We received a request to reset your password for your SHREX CLUB account. Use the one-time verification code below:
-                          </p>
-                          <div style="background: #000000; border: 1px solid #10b981; border-radius: 8px; padding: 14px 20px; display: inline-block; margin-bottom: 20px;">
-                            <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #34d399; font-family: monospace;">${otp}</span>
-                          </div>
-                          <p style="color: #71717a; font-size: 11px;">This verification code is valid for 10 minutes. If you did not request this, please ignore this email.</p>
-                        </div>
-                        <div style="text-align: center; margin-top: 24px; color: #52525b; font-size: 11px;">
-                          © 2026 SHREX CLUB. All rights reserved.
-                        </div>
-                      </div>
-                    `,
+                    html: emailHtml,
                   })
                   delivered = true
-                  serviceUsed = 'Gmail/SMTP'
-                  console.log(`✅ [GMAIL SMTP] Real email successfully delivered to ${email}`)
-                } catch (err) {
-                  console.error('❌ [GMAIL SMTP ERROR]:', err)
+                  serviceUsed = smtpHost ? 'Brevo/SMTP' : 'Gmail/SMTP'
+                  console.log(`✅ [SMTP] Real email successfully delivered to ${email} via ${serviceUsed}`)
+                } catch (err: any) {
+                  console.error('❌ [SMTP ERROR]:', err?.message)
                 }
               }
 
@@ -520,9 +557,14 @@ function emailOtpPlugin(env: Record<string, string>): Plugin {
                   success: true,
                   delivered,
                   serviceUsed,
+                  sandboxRestricted: isSandboxRestricted,
+                  fallbackOtp: otp,
                   message: delivered
-                    ? `OTP email successfully dispatched to ${email}`
-                    : `OTP generated securely. (To deliver live emails to ${email}, add your Gmail App Password or RESEND_API_KEY in .env)`,
+                    ? `OTP email successfully dispatched to ${email} via ${serviceUsed}`
+                    : isSandboxRestricted
+                      ? `Resend Sandbox Mode: Direct email delivery to external addresses is restricted until a custom domain or Gmail SMTP is configured.`
+                      : `OTP generated securely. (To deliver live emails to ${email}, add your Gmail App Password in .env)`,
+                  errorDetails: resendErrorText || undefined,
                 })
               )
             } catch (error) {

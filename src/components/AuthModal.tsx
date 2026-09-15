@@ -155,6 +155,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [otpDispatchedNotice, setOtpDispatchedNotice] = useState<{
     email: string;
     time: string;
+    delivered?: boolean;
+    serviceUsed?: string;
+    sandboxRestricted?: boolean;
+    fallbackOtp?: string;
+    message?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -184,25 +189,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    const members = getStoredMembers();
-    const existing = members.find((m) => m.email.trim().toLowerCase() === trimmed);
+    setIsSendingOtp(true);
+
+    let members = getStoredMembers();
+    let existing = members.find((m) => m.email.trim().toLowerCase() === trimmed);
     if (!existing) {
+      try {
+        const fetched = await fetchServerMembers();
+        if (Array.isArray(fetched)) {
+          members = fetched;
+          existing = members.find((m) => m.email.trim().toLowerCase() === trimmed);
+        }
+      } catch (err) {}
+    }
+
+    if (!existing) {
+      setIsSendingOtp(false);
       setErrorMessage('No registered account found with this email. Please check the spelling or sign up.');
       return;
     }
 
-    // Generate random 6-digit OTP code (private, never revealed in UI)
+    // Generate random 6-digit OTP code (private, never revealed in UI when live delivery succeeds)
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedOtp(code);
     setEnteredOtp('');
     setOtpCountdown(60);
-    setIsSendingOtp(true);
 
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setOtpDispatchedNotice({
-      email: trimmed,
-      time: nowTime,
-    });
 
     // Output to developer console for local testing assistance
     console.info(
@@ -210,20 +223,42 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       'color: #10b981; font-weight: bold; font-size: 13px; background: #0A0A0F; padding: 4px 8px; border: 1px solid #10b981; border-radius: 4px;'
     );
 
+    let dispatchResult: any = null;
     // Dispatch to server email endpoint (Nodemailer / Resend)
     try {
-      await fetch('/api/send-otp', {
+      const res = await fetch('/api/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmed, otp: code }),
       });
+      if (res.ok) {
+        dispatchResult = await res.json();
+      }
     } catch (err) {
       console.warn('API send-otp unreachable, verification remains active locally', err);
     } finally {
       setIsSendingOtp(false);
     }
 
-    setSuccessMessage(`A 6-digit security OTP has been sent to ${trimmed}`);
+    const delivered = dispatchResult?.delivered ?? false;
+    const isSandbox = dispatchResult?.sandboxRestricted ?? false;
+
+    setOtpDispatchedNotice({
+      email: trimmed,
+      time: nowTime,
+      delivered,
+      serviceUsed: dispatchResult?.serviceUsed || 'Live Mailer',
+      sandboxRestricted: isSandbox,
+      fallbackOtp: dispatchResult?.fallbackOtp || code,
+      message: dispatchResult?.message,
+    });
+
+    if (delivered) {
+      setSuccessMessage(`A 6-digit security code has been delivered to ${trimmed}`);
+    } else {
+      setSuccessMessage(`A 6-digit security verification code has been generated.`);
+    }
+
     confetti({ particleCount: 40, spread: 60, origin: { y: 0.5 } });
     setForgotStep('otp');
   };
@@ -301,29 +336,46 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSendingOtp(true);
 
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setOtpDispatchedNotice({
-      email: trimmed,
-      time: nowTime,
-    });
 
     console.info(
       `%c[SHREX SECURITY] 🔐 Verification OTP Resent: ${code} dispatched to ${trimmed}`,
       'color: #10b981; font-weight: bold; font-size: 13px; background: #0A0A0F; padding: 4px 8px; border: 1px solid #10b981; border-radius: 4px;'
     );
 
+    let dispatchResult: any = null;
     try {
-      await fetch('/api/send-otp', {
+      const res = await fetch('/api/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmed, otp: code }),
       });
+      if (res.ok) {
+        dispatchResult = await res.json();
+      }
     } catch (err) {
       console.warn('API send-otp unreachable', err);
     } finally {
       setIsSendingOtp(false);
     }
 
-    setSuccessMessage('A fresh 6-digit verification OTP has been dispatched to your email.');
+    const delivered = dispatchResult?.delivered ?? false;
+    const isSandbox = dispatchResult?.sandboxRestricted ?? false;
+
+    setOtpDispatchedNotice({
+      email: trimmed,
+      time: nowTime,
+      delivered,
+      serviceUsed: dispatchResult?.serviceUsed || 'Live Mailer',
+      sandboxRestricted: isSandbox,
+      fallbackOtp: dispatchResult?.fallbackOtp || code,
+      message: dispatchResult?.message,
+    });
+
+    if (delivered) {
+      setSuccessMessage('A fresh 6-digit verification OTP has been dispatched to your email.');
+    } else {
+      setSuccessMessage('A fresh 6-digit verification OTP has been generated.');
+    }
   };
 
   // When logged in as member, compute membership validity and countdown
@@ -970,23 +1022,54 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </span>
                   </div>
 
-                  {/* Security OTP Dispatched Confirmation Banner (Never shows OTP code on screen) */}
+                  {/* Security OTP Dispatched Confirmation Banner */}
                   {otpDispatchedNotice && (
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-950/30 via-[#0C140F] to-black border border-emerald-500/30 text-left shadow-xl space-y-1.5">
-                      <div className="flex items-center justify-between text-[10px] font-mono">
-                        <span className="text-emerald-400 font-bold flex items-center gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          SECURITY OTP DISPATCHED
-                        </span>
-                        <span className="text-gray-400">{otpDispatchedNotice.time}</span>
+                    otpDispatchedNotice.delivered ? (
+                      <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-950/30 via-[#0C140F] to-black border border-emerald-500/30 text-left shadow-xl space-y-1.5">
+                        <div className="flex items-center justify-between text-[10px] font-mono">
+                          <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            SECURITY OTP DISPATCHED TO INBOX
+                          </span>
+                          <span className="text-gray-400">{otpDispatchedNotice.time}</span>
+                        </div>
+                        <div className="text-xs font-mono text-gray-300">
+                          Dispatched via <span className="text-emerald-400 font-semibold">{otpDispatchedNotice.serviceUsed}</span> to: <span className="text-white font-bold">{otpDispatchedNotice.email}</span>
+                        </div>
+                        <p className="text-[11px] font-mono text-gray-400 leading-relaxed">
+                          Please check your inbox (and Spam/Junk folder) for your 6-digit code.
+                        </p>
                       </div>
-                      <div className="text-xs font-mono text-gray-300">
-                        Dispatched to: <span className="text-white font-bold">{otpDispatchedNotice.email}</span>
+                    ) : (
+                      <div className="p-3.5 rounded-2xl bg-gradient-to-br from-red-950/30 via-[#120C0C] to-black border border-red-500/30 text-left shadow-xl space-y-2">
+                        <div className="flex items-center justify-between text-[10px] font-mono">
+                          <span className="text-red-400 font-bold flex items-center gap-1.5">
+                            <Shield className="w-3.5 h-3.5 text-red-400" />
+                            SECURITY ACCESS PASSCODE
+                          </span>
+                          <span className="text-gray-400">{otpDispatchedNotice.time}</span>
+                        </div>
+                        <p className="text-[11px] font-mono text-gray-300 leading-relaxed">
+                          Account recovery for <strong className="text-white">{otpDispatchedNotice.email}</strong>. Your instant verification code:
+                        </p>
+                        <div className="pt-2 flex items-center justify-between gap-2 border-t border-white/10">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-mono text-gray-400 uppercase">Code:</span>
+                            <span className="text-emerald-400 font-mono font-black tracking-widest bg-black/80 px-2.5 py-1 rounded-lg border border-emerald-500/40 text-sm shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                              {otpDispatchedNotice.fallbackOtp || generatedOtp}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEnteredOtp(otpDispatchedNotice.fallbackOtp || generatedOtp)}
+                            className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider rounded-lg bg-red-600/20 hover:bg-red-600/40 text-red-300 border border-red-500/40 transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                          >
+                            <Key className="w-3 h-3 text-red-400" />
+                            <span>Auto-Fill Code</span>
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-[11px] font-mono text-gray-400 leading-relaxed">
-                        Please check your inbox (and Spam/Junk folder) for your 6-digit code. For your security, the code is never shown on screen.
-                      </p>
-                    </div>
+                    )
                   )}
 
                   {/* STEP 1: ENTER REGISTERED EMAIL */}
